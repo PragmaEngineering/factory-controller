@@ -1,0 +1,225 @@
+package commandrunner
+
+import (
+	"context"
+
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"controls/execution"
+
+	"controls/internal/comms"
+	"controls/internal/packagehash"
+	"controls/internal/sessions"
+)
+
+// SessionHost is the process boundary used by the command package adapter.
+type SessionHost interface {
+	Launch(sessions.Launch) (sessions.Session, error)
+	Get(string) (sessions.Session, error)
+	Stop(string) error
+	Output(string, int64, int) (sessions.Output, error)
+}
+
+type SessionRecorder interface {
+	AttachSession(executionID, stepID, sessionID string) error
+}
+
+type Communication interface {
+	Provision(context.Context, execution.Work) (comms.Connection, error)
+	BindSession(context.Context, string, string) error
+	Result(context.Context, string) (*execution.StepResult, error)
+	End(context.Context, string) error
+}
+
+type Runner struct {
+	Comms    Communication
+	Sessions SessionHost
+	Recorder SessionRecorder
+	Root     string
+}
+
+type settings struct {
+	Entrypoint string   `json:"entrypoint"`
+	Args       []string `json:"args"`
+}
+
+// Run supervises one invocation. Only a durably accepted MCP result completes
+// it; output, idle turns, and process exit cannot stand in for a result.
+func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepResult, error) {
+	if r.Comms == nil {
+		return execution.StepResult{}, errors.New("agent communication service is required")
+	}
+	connection, err := r.Comms.Provision(ctx, work)
+	if err != nil {
+		return execution.StepResult{}, err
+	}
+	if connection.Result != nil {
+		return *connection.Result, nil
+	}
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = r.Comms.End(cleanup, connection.ParticipantID)
+	}()
+	if err = packagehash.Verify(work.Package); err != nil {
+		return execution.StepResult{}, err
+	}
+	var profile settings
+	if err = json.Unmarshal(work.Package.Settings, &profile); err != nil {
+		return execution.StepResult{}, fmt.Errorf("decode package settings: %w", err)
+	}
+	if profile.Entrypoint == "" {
+		return execution.StepResult{}, errors.New("package entrypoint is required")
+	}
+	access := work.Package.Access
+	if len(access.ReadPaths)+len(access.WritePaths)+len(access.Network)+len(access.Tools)+len(access.MCPs)+len(access.SecretRefs) > 0 {
+		return execution.StepResult{}, errors.New("host command runner cannot enforce package access grants")
+	}
+	stepID := execution.StepVisitID(work.ExecutionID, work.Step.ID, work.Visit)
+	directory := filepath.Join(r.Root, "executions", work.ExecutionID, stepID, fmt.Sprintf("try-%d", work.Try))
+	if err = os.MkdirAll(directory, 0700); err != nil {
+		return execution.StepResult{}, err
+	}
+	skillDirectory := filepath.Join(directory, "control-plane-comms")
+	if err = os.MkdirAll(skillDirectory, 0700); err != nil {
+		return execution.StepResult{}, err
+	}
+	if err = os.WriteFile(filepath.Join(skillDirectory, "SKILL.md"), []byte(comms.Skill), 0600); err != nil {
+		return execution.StepResult{}, err
+	}
+	prompt := buildPrompt(work, connection.ThreadID)
+	promptPath := filepath.Join(directory, "prompt.md")
+	if err = os.WriteFile(promptPath, []byte(prompt), 0600); err != nil {
+		return execution.StepResult{}, err
+	}
+	sessionID := connection.SessionID
+	if sessionID == "" {
+		if !connection.New {
+			return execution.StepResult{}, errors.New("worker launch ownership is unresolved; retry the blocked attempt after reconciliation")
+		}
+		command := []string{filepath.Join(work.Package.Source, profile.Entrypoint)}
+		for _, arg := range profile.Args {
+			command = append(command, strings.ReplaceAll(arg, "{prompt}", prompt))
+		}
+		session, err := r.Sessions.Launch(sessions.Launch{ExecutionID: work.ExecutionID, StepID: stepID, Visit: work.Visit, Try: work.Try, Name: work.Package.Name, Runner: work.Package.Runner, Directory: work.Project, Command: command, InputMode: "pty", Environment: map[string]string{
+			"FACTORY_AGENT_RUNTIME_DIR": filepath.Join(directory, "profiles"),
+			"FACTORY_COMMS_SKILL":       skillDirectory,
+			"FACTORY_MCP_URL":           connection.URL, "FACTORY_MCP_TOKEN": connection.Token, "FACTORY_PARTICIPANT_ID": connection.ParticipantID, "FACTORY_THREAD_ID": connection.ThreadID, "FACTORY_PROMPT_PATH": promptPath, "FACTORY_EXECUTION_ID": work.ExecutionID, "FACTORY_STEP_ID": stepID,
+		}})
+		if err != nil {
+			return execution.StepResult{}, err
+		}
+		sessionID = session.ID
+		if err = r.Comms.BindSession(ctx, connection.ParticipantID, sessionID); err != nil {
+			_ = r.Sessions.Stop(sessionID)
+			return execution.StepResult{}, err
+		}
+	}
+	if err = r.Recorder.AttachSession(work.ExecutionID, stepID, sessionID); err != nil {
+		_ = r.Sessions.Stop(sessionID)
+		return execution.StepResult{}, err
+	}
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		result, err := r.Comms.Result(ctx, connection.ParticipantID)
+		if err != nil {
+			return execution.StepResult{}, err
+		}
+		if result != nil {
+			// The committed receipt must have time to reach the client and output sink.
+			drain := time.NewTimer(2 * time.Second)
+			select {
+			case <-drain.C:
+			case <-ctx.Done():
+				if !drain.Stop() {
+					<-drain.C
+				}
+			}
+			if current, getErr := r.Sessions.Get(sessionID); getErr == nil && current.State == sessions.Running {
+				_ = r.Sessions.Stop(sessionID)
+			}
+			return *result, nil
+		}
+		current, err := r.Sessions.Get(sessionID)
+		if err != nil {
+			return execution.StepResult{}, err
+		}
+		if current.State != sessions.Running && current.State != sessions.Stopping {
+			// Recheck acceptance after observing exit to close the completion/exit race.
+			if result, err = r.Comms.Result(ctx, connection.ParticipantID); err != nil {
+				return execution.StepResult{}, err
+			}
+			if result != nil {
+				return *result, nil
+			}
+			output, _ := r.Sessions.Output(sessionID, -1, 4096)
+			return execution.StepResult{}, fmt.Errorf("agent session %s ended without an accepted result (exit %s): %s", sessionID, exitCode(current), strings.TrimSpace(output.Text))
+		}
+		select {
+		case <-ctx.Done():
+			_ = r.Sessions.Stop(sessionID)
+			return execution.StepResult{}, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func exitCode(session sessions.Session) string {
+	if session.ExitCode == nil {
+		return "unknown"
+	}
+	return fmt.Sprint(*session.ExitCode)
+}
+
+func buildPrompt(work execution.Work, threadID string) string {
+	var prompt strings.Builder
+	fmt.Fprintf(&prompt, "You are running Factory step %s (visit %d, attempt %d).\n\n", work.Step.ID, work.Visit, work.Try)
+	fmt.Fprintf(&prompt, "Project root: %s\n", work.Project)
+	fmt.Fprintf(&prompt, "Request: %s\n\n", work.Brief)
+	if len(work.Inputs) > 0 {
+		prompt.WriteString("Input documents (read these files as needed):\n")
+		for _, input := range work.Inputs {
+			fmt.Fprintf(&prompt, "- %s: %s (sha256 %s)\n", input.Name, input.URI, input.Digest)
+		}
+		prompt.WriteByte('\n')
+	}
+	if len(work.History) > 0 {
+		prompt.WriteString("Accepted prior steps:\n")
+		for _, previous := range work.History {
+			fmt.Fprintf(&prompt, "- %s visit %d: %s — %s\n", previous.Step, previous.Visit, previous.Result.Outcome, previous.Result.Summary)
+			for _, artifact := range previous.Result.Artifacts {
+				fmt.Fprintf(&prompt, "  - %s: %s (sha256 %s)\n", artifact.Name, artifact.URI, artifact.Digest)
+			}
+		}
+		prompt.WriteByte('\n')
+	}
+	fmt.Fprintf(&prompt, "This step: %s\n%s\n\n", work.Step.Title, work.Step.Instructions)
+	if len(work.Step.Outputs) > 0 {
+		fmt.Fprintf(&prompt, "Required outputs: %s\n", strings.Join(work.Step.Outputs, ", "))
+		if len(work.Step.OutputsOn) > 0 {
+			outcomes := make([]string, len(work.Step.OutputsOn))
+			for i, outcome := range work.Step.OutputsOn {
+				outcomes[i] = string(outcome)
+			}
+			fmt.Fprintf(&prompt, "These outputs are required only for outcomes: %s. Other outcomes may report blockers without these files.\n", strings.Join(outcomes, ", "))
+		}
+	}
+	var outcomes []string
+	for outcome := range work.Step.Routes {
+		outcomes = append(outcomes, string(outcome))
+	}
+	sort.Strings(outcomes)
+	fmt.Fprintf(&prompt, "Allowed outcomes: %s\n", strings.Join(outcomes, ", "))
+	fmt.Fprintf(&prompt, "Conversation thread: %s. Use Factory MCP list_participants to discover peers. Exchange work and feedback through send_message. Follow your runtime delivery instructions: with automatic delivery, end an idle turn and let the runtime wake you; otherwise use wait_for_message.\n", threadID)
+	prompt.WriteString("Finish by sending a step_result payload to the controller, using an allowed outcome and factual summary. Wait for effect.state=accepted. Factory collects applicable output files. Intermediate peer feedback is a message, not a terminal result.\n")
+	return prompt.String()
+}

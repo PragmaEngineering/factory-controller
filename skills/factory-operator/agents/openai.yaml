@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Operator"
+  short_description: "Run and interact with Factory workflow executions"
+  default_prompt: "Use $factory-operator to run the configured factory for this request and keep me informed of progress and decisions."

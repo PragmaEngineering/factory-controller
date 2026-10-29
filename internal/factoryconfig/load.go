@@ -1,0 +1,242 @@
+package factoryconfig
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"controls/execution"
+	"controls/internal/packagehash"
+)
+
+// Definition is the project-facing factory.json format. Paths in it are
+// resolved relative to the file, never relative to the CLI process.
+type Definition struct {
+	Name     string  `json:"name"`
+	Agents   []Agent `json:"agents"`
+	Workflow struct {
+		Start  string  `json:"start"`
+		Stages []Stage `json:"stages,omitempty"`
+		Steps  []Step  `json:"steps"`
+	} `json:"workflow"`
+}
+
+type Stage struct {
+	Name  string `json:"name"`
+	Loop  *Loop  `json:"loop"`
+	Human *Human `json:"human,omitempty"`
+}
+
+type Loop struct {
+	Mode  string `json:"mode,omitempty"`
+	Limit uint   `json:"limit"`
+	Steps []Step `json:"steps"`
+}
+
+type Human struct {
+	Required bool   `json:"required"`
+	Step     string `json:"step,omitempty"`
+}
+
+type Agent struct {
+	Name       string   `json:"name"`
+	Path       string   `json:"path"`
+	Entrypoint string   `json:"entrypoint"`
+	Args       []string `json:"args,omitempty"`
+}
+
+type Step struct {
+	Name         string              `json:"name"`
+	Type         string              `json:"type"`
+	Agent        string              `json:"agent,omitempty"`
+	Title        string              `json:"title,omitempty"`
+	Instructions string              `json:"instructions,omitempty"`
+	Inputs       []string            `json:"inputs,omitempty"`
+	Outputs      []string            `json:"outputs,omitempty"`
+	OutputsOn    []execution.Outcome `json:"outputs_on,omitempty"`
+	Artifacts    []string            `json:"artifacts,omitempty"`
+	Actor        string              `json:"actor,omitempty"`
+	On           map[string]string   `json:"on"`
+}
+
+type Resolved struct {
+	Path          string
+	Project       string
+	Definition    Definition
+	Configuration execution.Configuration
+	Digest        string
+}
+
+func Load(path string) (Resolved, error) {
+	if path == "" {
+		var err error
+		path, err = os.Getwd()
+		if err != nil {
+			return Resolved{}, err
+		}
+		path = filepath.Join(path, "factory.json")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return Resolved{}, err
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return Resolved{}, fmt.Errorf("read factory config %s: %w", abs, err)
+	}
+	var definition Definition
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&definition); err != nil {
+		return Resolved{}, fmt.Errorf("parse factory config %s: %w", abs, err)
+	}
+	var trailingValue any
+	if err := decoder.Decode(&trailingValue); err != io.EOF {
+		if err == nil {
+			return Resolved{}, fmt.Errorf("parse factory config %s: expected one JSON object", abs)
+		}
+		return Resolved{}, fmt.Errorf("parse factory config %s: %w", abs, err)
+	}
+	if definition.Name == "" {
+		return Resolved{}, fmt.Errorf("%s: name is required", abs)
+	}
+	config := execution.Configuration{Workflow: execution.Workflow{
+		Name:  definition.Name,
+		Start: execution.StepID(definition.Workflow.Start),
+	}}
+	stageByStep := make(map[string]string)
+	topLevelSteps := make(map[string]Step, len(definition.Workflow.Steps))
+	for _, step := range definition.Workflow.Steps {
+		if _, exists := topLevelSteps[step.Name]; exists {
+			return Resolved{}, fmt.Errorf("%s: duplicate step %q", abs, step.Name)
+		}
+		topLevelSteps[step.Name] = step
+	}
+	steps := make([]Step, 0, len(definition.Workflow.Steps))
+	usedTopLevel := make(map[string]bool)
+	for _, stage := range definition.Workflow.Stages {
+		if stage.Loop == nil {
+			return Resolved{}, fmt.Errorf("%s: stage %q requires a loop containing its steps", abs, stage.Name)
+		}
+		resolved := execution.Stage{ID: stage.Name, Loop: &execution.LoopPolicy{Limit: stage.Loop.Limit, Mode: stage.Loop.Mode}}
+		for _, step := range stage.Loop.Steps {
+			resolved.Steps = append(resolved.Steps, execution.StepID(step.Name))
+			stageByStep[step.Name] = stage.Name
+			steps = append(steps, step)
+		}
+		if stage.Human != nil {
+			resolved.Human = &execution.HumanPolicy{Required: stage.Human.Required, Step: execution.StepID(stage.Human.Step)}
+			if stage.Human.Step != "" {
+				stageByStep[stage.Human.Step] = stage.Name
+				if decision, exists := topLevelSteps[stage.Human.Step]; exists {
+					steps = append(steps, decision)
+					usedTopLevel[stage.Human.Step] = true
+				}
+			}
+		}
+		config.Workflow.Stages = append(config.Workflow.Stages, resolved)
+	}
+	if start, exists := topLevelSteps[definition.Workflow.Start]; exists && !usedTopLevel[start.Name] {
+		steps = append([]Step{start}, steps...)
+		usedTopLevel[start.Name] = true
+	}
+	for _, step := range definition.Workflow.Steps {
+		if !usedTopLevel[step.Name] {
+			steps = append(steps, step)
+		}
+	}
+	agents := make(map[string]Agent, len(definition.Agents))
+	for _, agent := range definition.Agents {
+		if agent.Name == "" || agent.Path == "" || agent.Entrypoint == "" {
+			return Resolved{}, fmt.Errorf("%s: each agent needs name, path, and entrypoint", abs)
+		}
+		if _, exists := agents[agent.Name]; exists {
+			return Resolved{}, fmt.Errorf("%s: duplicate agent %q", abs, agent.Name)
+		}
+		packagePath := agent.Path
+		if !filepath.IsAbs(packagePath) {
+			packagePath = filepath.Join(filepath.Dir(abs), packagePath)
+		}
+		root, err := filepath.Abs(packagePath)
+		if err != nil {
+			return Resolved{}, err
+		}
+		if info, err := os.Stat(root); err != nil || !info.IsDir() {
+			return Resolved{}, fmt.Errorf("%s: agent %q directory %s is unavailable", abs, agent.Name, root)
+		}
+		entrypoint := filepath.Join(root, agent.Entrypoint)
+		if info, err := os.Stat(entrypoint); err != nil || info.IsDir() {
+			return Resolved{}, fmt.Errorf("%s: agent %q entrypoint %s is unavailable", abs, agent.Name, entrypoint)
+		}
+		agent.Path = root
+		agents[agent.Name] = agent
+		settings, _ := json.Marshal(struct {
+			Entrypoint string   `json:"entrypoint"`
+			Args       []string `json:"args,omitempty"`
+		}{agent.Entrypoint, agent.Args})
+		digest, err := packagehash.Directory(root)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("hash agent %q: %w", agent.Name, err)
+		}
+		config.Packages = append(config.Packages, execution.PackageSnapshot{
+			Name: agent.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
+		})
+	}
+	for _, step := range steps {
+		title := step.Title
+		if title == "" {
+			title = step.Name
+		}
+		resolved := execution.Step{ID: execution.StepID(step.Name), Stage: stageByStep[step.Name], Title: title, Instructions: step.Instructions,
+			Inputs: step.Inputs, Outputs: step.Outputs, OutputsOn: step.OutputsOn, Routes: make(map[execution.Outcome]execution.StepID, len(step.On))}
+		for outcome, target := range step.On {
+			switch target {
+			case "$done":
+				target = string(execution.Complete)
+			case "$blocked":
+				target = string(execution.Fail)
+			}
+			resolved.Routes[execution.Outcome(outcome)] = execution.StepID(target)
+		}
+		switch step.Type {
+		case "agent":
+			if _, exists := agents[step.Agent]; !exists {
+				return Resolved{}, fmt.Errorf("%s: step %q references unknown agent %q", abs, step.Name, step.Agent)
+			}
+			resolved.Kind = execution.RunStep
+			resolved.Run = &execution.RunSpec{Package: step.Agent}
+		case "decision":
+			resolved.Kind = execution.DecisionStep
+			options := make([]execution.Outcome, 0, len(step.On))
+			for outcome := range step.On {
+				options = append(options, execution.Outcome(outcome))
+			}
+			sort.Slice(options, func(i, j int) bool { return options[i] < options[j] })
+			prompt := title
+			if len(step.Artifacts) > 0 {
+				prompt += ": review " + strings.Join(step.Artifacts, ", ")
+			}
+			resolved.Decision = &execution.DecisionSpec{Authority: step.Actor, Prompt: prompt, Options: options, Artifacts: step.Artifacts}
+		default:
+			return Resolved{}, fmt.Errorf("%s: step %q has unsupported type %q", abs, step.Name, step.Type)
+		}
+		config.Workflow.Steps = append(config.Workflow.Steps, resolved)
+	}
+	if err := execution.Validate(config); err != nil {
+		return Resolved{}, fmt.Errorf("%s: %w", abs, err)
+	}
+	canonical, err := json.Marshal(config)
+	if err != nil {
+		return Resolved{}, err
+	}
+	digest := sha256.Sum256(canonical)
+	return Resolved{Path: abs, Project: filepath.Dir(abs), Definition: definition,
+		Configuration: config, Digest: hex.EncodeToString(digest[:])}, nil
+}

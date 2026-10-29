@@ -1,0 +1,75 @@
+{
+  "name": "example-coding",
+  "agents": [
+    {
+      "name": "builder",
+      "path": "./agents/builder",
+      "entrypoint": "start.sh",
+      "args": [
+        "{prompt}"
+      ]
+    },
+    {
+      "name": "reviewer",
+      "path": "./agents/reviewer",
+      "entrypoint": "start.sh",
+      "args": [
+        "{prompt}"
+      ]
+    }
+  ],
+  "workflow": {
+    "start": "build",
+    "stages": [
+      {
+        "name": "implementation",
+        "loop": {
+          "mode": "sequential",
+          "limit": 3,
+          "steps": [
+            {
+              "name": "build",
+              "type": "agent",
+              "agent": "builder",
+              "title": "Implement the request",
+              "instructions": "Implement the request in the project and report the changes and checks performed.",
+              "on": {
+                "ready_for_review": "review",
+                "failed": "$blocked"
+              }
+            },
+            {
+              "name": "review",
+              "type": "agent",
+              "agent": "reviewer",
+              "title": "Review the implementation",
+              "instructions": "Review the work against the request. Return changes_requested with specific findings or completed when it is ready for human acceptance.",
+              "on": {
+                "changes_requested": "build",
+                "completed": "acceptance",
+                "failed": "$blocked"
+              }
+            }
+          ]
+        },
+        "human": {
+          "required": true,
+          "step": "acceptance"
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "acceptance",
+        "type": "decision",
+        "actor": "human",
+        "title": "Accept the implementation",
+        "on": {
+          "approve": "$done",
+          "request_changes": "build",
+          "reject": "$blocked"
+        }
+      }
+    ]
+  }
+}
