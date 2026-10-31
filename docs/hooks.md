@@ -87,6 +87,8 @@ External effects and the database cannot be committed atomically. A process migh
 2. Stage `after`: [commit the combined work](../../registry/skills/git-commit/SKILL.md).
 3. Execution `after`: release the checkout reservation, retaining the branch and history.
 
+The executable utilities belong to [Registry scripts](../../registry/scripts/README.md). The Git skills document those utilities; hooks invoke the scripts directly and do not load a skill.
+
 Replace the example agent paths and script arguments with paths for your installation. The example's `../registry/...` paths assume sibling Controls and Registry checkouts and are resolved from the project directory, not this documentation. Copying the example to another project requires updating them. Use absolute script paths when Registry remains outside the project.
 
 Python 3.9+ and Git are needed for these optional Unix utilities; Controls itself has no Python/Git dependency. Configure Git user identity and any required signing tools first. Preparation refuses pre-existing changes and reserves the checkout for one execution. Commit paths are explicit; the example's `--path .` deliberately stages all nonignored project changes. Narrow them when appropriate and keep runtime/secrets excluded through ignore rules. The scripts cannot distinguish unrelated human edits in the same files.

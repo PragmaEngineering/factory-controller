@@ -74,7 +74,7 @@
               "name": "commit-implementation",
               "command": "python3",
               "arguments": [
-                "../registry/skills/git-commit/scripts/commit.py",
+                "../registry/scripts/git-commit.py",
                 "--type",
                 "chore",
                 "--scope",
@@ -109,7 +109,7 @@
         "name": "work-branch",
         "command": "python3",
         "arguments": [
-          "../registry/skills/git-work-branch/scripts/prepare.py",
+          "../registry/scripts/git-work-branch.py",
           "--base",
           "HEAD",
           "--prefix",
@@ -122,7 +122,7 @@
         "name": "release-checkout",
         "command": "python3",
         "arguments": [
-          "../registry/skills/git-work-branch/scripts/prepare.py",
+          "../registry/scripts/git-work-branch.py",
           "--release"
         ]
       }
