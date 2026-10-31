@@ -5,6 +5,7 @@ package comms
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -154,10 +155,22 @@ func decodeData[T any](p Payload) (T, error) {
 		return v, err
 	}
 	raw, err := json.Marshal(data)
-	if err == nil {
-		err = json.Unmarshal(raw, &v)
+	if err != nil {
+		return v, fault("invalid_argument", "invalid %s data: expected JSON-compatible fields", p.Kind)
 	}
-	return v, err
+	if err = json.Unmarshal(raw, &v); err != nil {
+		var mismatch *json.UnmarshalTypeError
+		if errors.As(err, &mismatch) && mismatch.Field != "" {
+			if p.Kind == "step_result" && mismatch.Field == "artifacts" {
+				return v, fault("invalid_argument", `step_result.artifacts must be an array of objects, e.g. [{"name":"output.txt"}], not filename strings; omit artifacts to collect the configured outputs automatically`)
+			}
+			return v, fault("invalid_argument", "invalid %s data: field %q has the wrong JSON type; correct the payload before resubmitting", p.Kind, mismatch.Field)
+		}
+		// Do not expose submitted values or internal decoder diagnostics. Every
+		// decoding failure here concerns caller data, not service availability.
+		return v, fault("invalid_argument", "invalid %s data: fields do not match the expected JSON format; correct the payload before resubmitting", p.Kind)
+	}
+	return v, nil
 }
 func Structured(kind string, data any) Payload {
 	raw, _ := json.Marshal(data)

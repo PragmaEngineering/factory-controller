@@ -227,9 +227,11 @@ These are payload schemas, not additional MCP tools. Ordinary custom kinds may b
 
 A participant cannot turn a conversation into an approval by choosing a message kind. A configured decision requires the configured answering authority. An agent's question and its answer cannot waive a separate workflow gate or expand authorized scope.
 
-Outcome names remain workflow-defined. Never assume a built-in `completed`, `failed`, or software-review outcome. Missing output validation must preserve the submitted outcome and summary alongside the diagnostic. The runner collects applicable `outputs`/`outputs_on` files and verifies additional artifact references; the model does not compute required digests. Artifact access remains behind the runner boundary, including future isolated workspaces.
+Outcome names remain workflow-defined. Never assume a built-in `completed`, `failed`, or software-review outcome. Missing output validation must preserve the submitted outcome and summary alongside the diagnostic. The runner collects applicable `outputs`/`outputs_on` files and verifies additional artifact references; the model does not compute required digests. Normally omit `step_result.artifacts`. Additional files use objects such as `"artifacts":[{"name":"extra.md"}]`, not filename strings; the host supplies verified URIs and digests. Artifact access remains behind the runner boundary, including future isolated workspaces.
 
 Known implementation gap: the host runner understands `outputs_on`, but `hatchetengine/run.go` still checks all declared outputs unconditionally. Align this before claiming outcome-specific requirements work end to end.
+
+Malformed structured control data returns `invalid_argument` with the affected field and correction guidance. It is not a transient availability failure: correct the payload before resubmitting. Unknown internal failures return `internal_error` without automatic-retry advice; diagnostic details remain in controller logs. Explicitly classified transient faults retain their own retry guidance. After an uncertain transport response, retry unchanged with the same operation ID. A corrected validation-rejected payload is a new submission with a new ID; it cannot overwrite an accepted result.
 
 ## Receipts and durable acceptance
 

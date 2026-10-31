@@ -27,17 +27,11 @@ func (s *Service) MCPHandler() http.Handler {
 			}
 			value, err := s.Call(ctx, p, name, request.Params.Arguments)
 			if err != nil {
-				code := "temporarily_unavailable"
-				message := "communication service unavailable; retry unchanged operation_id"
 				var f *Fault
-				if errors.As(err, &f) {
-					code = f.Code
-					message = f.Message
-				} else {
+				if !errors.As(err, &f) {
 					slog.ErrorContext(ctx, "communication operation failed", "tool", name, "participant", p.ID, "error", err)
 				}
-				raw, _ := json.Marshal(map[string]any{"error": map[string]string{"code": code, "message": message}})
-				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(raw)}}, StructuredContent: json.RawMessage(raw)}, nil
+				return mcpFailure(err), nil
 			}
 			raw, err := json.Marshal(value)
 			if err != nil {
@@ -76,6 +70,20 @@ func (s *Service) MCPHandler() http.Handler {
 		handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))
 	})
 }
+
+// Unknown failures are not necessarily transient. Retry advice must come
+// from an explicitly classified Fault, not from a failed operation alone.
+func mcpFailure(err error) *mcp.CallToolResult {
+	code := "internal_error"
+	message := "communication operation failed; inspect controller diagnostics before retrying"
+	var f *Fault
+	if errors.As(err, &f) {
+		code, message = f.Code, f.Message
+	}
+	raw, _ := json.Marshal(map[string]any{"error": map[string]string{"code": code, "message": message}})
+	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(raw)}}, StructuredContent: json.RawMessage(raw)}
+}
+
 func (s *Service) Listen(ctx context.Context) (func(), error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -140,12 +148,14 @@ func (s *Service) Call(ctx context.Context, p Participant, name string, raw json
 	}
 }
 
+const resultDataGuidance = `For step_result, normally omit artifacts: the host collects configured outputs. Additional artifacts must be objects, e.g. "artifacts":[{"name":"output.txt"}], never filename strings. The host supplies verified URIs and digests.`
+
 var descriptions = map[string]string{
 	"create_thread":       "Create a conversation among known participants in your execution. Does not launch workers.",
 	"add_participant":     "Add an existing participant. Requires thread-owner or human/controller authority; does not start an agent.",
 	"remove_participants": "Remove memberships atomically. Requires thread-owner or human/controller authority; does not kill processes.",
 	"list_participants":   "Return {participants:[...]} with participant identities, assignments, and active/removed states. Discover peer and controller IDs here.",
-	"send_message":        "Send addressed or broadcast content. payload has kind, version:1, and A2A 0.3 content parts. Text: {kind:text,text:...}. Structured: {kind:data,data:{...}}. Control kinds: publication (files: project-relative paths), progress, input_request (prompt, options), input_response (request_id, answer), step_result (outcome, summary, publication_id when work was published, optional artifacts). Control requests address controller; input requests also address human. Reuse operation_id on uncertain retries. A result is complete only when effect.state is accepted.",
+	"send_message":        "Send addressed or broadcast content. payload has kind, version:1, and A2A 0.3 content parts. Text: {kind:text,text:...}. Structured: {kind:data,data:{...}}. Control kinds: publication (files: project-relative paths), progress, input_request (prompt, options), input_response (request_id, answer), step_result (outcome, summary, publication_id when work was published). Control requests address controller; input requests also address human. Reuse operation_id only for unchanged uncertain retries; correct invalid_argument payloads before resubmitting. A result is complete only when effect.state is accepted. " + resultDataGuidance,
 	"read_messages":       "Read all or unread messages without consuming them. after is a returned cursor. ack_through acknowledges a retained batch for yourself only. Returns messages, cursor, more, closed.",
 	"wait_for_message":    "Wait up to 30 seconds for visible messages after a returned cursor. Does not acknowledge them. Timeout returns an empty batch; reconnect using the same cursor.",
 	"close_thread":        "Close a conversation, preserving history. Requires thread-owner or human/controller authority. Does not complete an execution.",
@@ -160,7 +170,7 @@ func stringsProp() map[string]any        { return map[string]any{"type": "array"
 var schemas = map[string]any{
 	"create_thread":       schema([]string{"operation_id", "title", "context", "participants"}, map[string]any{"operation_id": prop("string"), "title": prop("string"), "context": map[string]any{"type": "array", "items": prop("object")}, "participants": stringsProp()}),
 	"list_participants":   schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string")}),
-	"send_message":        schema([]string{"operation_id", "thread_id", "payload"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "recipients": stringsProp(), "in_reply_to": prop("string"), "payload": schema([]string{"kind", "version", "parts"}, map[string]any{"kind": prop("string"), "version": prop("integer"), "parts": map[string]any{"type": "array", "items": prop("object")}})}),
+	"send_message":        schema([]string{"operation_id", "thread_id", "payload"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "recipients": stringsProp(), "in_reply_to": prop("string"), "payload": schema([]string{"kind", "version", "parts"}, map[string]any{"kind": prop("string"), "version": prop("integer"), "parts": map[string]any{"type": "array", "description": resultDataGuidance, "items": prop("object")}})}),
 	"read_messages":       schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string"), "mode": prop("string"), "after": prop("string"), "limit": prop("integer"), "ack_through": prop("string")}),
 	"wait_for_message":    schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string"), "after": prop("string"), "limit": prop("integer"), "wait_seconds": prop("integer")}),
 	"add_participant":     schema([]string{"operation_id", "thread_id", "participant_id"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "participant_id": prop("string")}),
