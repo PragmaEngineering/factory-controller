@@ -2,7 +2,7 @@
 
 **Status: implemented local integration.** The thread MCP service, communication skill, Pi delivery adapter, sequential/concurrent loop modes, publication, and inbox projection are implemented. This document explains their contract and remaining limits. The original result-file completion path is removed.
 
-Start with the [factory.json reference](docs/factory-json.md) and [runner setup](../registry/resources/runtime-adapters.md). The canonical [communication skill](internal/comms/skill/SKILL.md) is embedded in the control-plane binary and provisioned for each managed invocation.
+Start with the [factory.json reference](docs/factory-json.md) and [runner setup](adapters/README.md). The canonical [communication skill](internal/comms/skill/SKILL.md) is embedded in the control-plane binary and provisioned for each managed invocation.
 
 ## Design decisions
 
@@ -26,7 +26,7 @@ Native model events, tool output, stdout, and stderr remain on the execution eve
 | Waiter wake-up | PostgreSQL `LISTEN/NOTIFY` plus durable queries | Authorization, bounded waits, reconnect and missed-notification recovery |
 | Workflow execution | Existing `execution.Engine` and `execution.Runner` boundaries | Durable acceptance, replay, and workflow delivery |
 
-The Pi adapter pins the official MCP TypeScript SDK at 1.32.2. Install it with `npm ci --prefix /path/to/registry/resources`. The attempted A2A 1.0 alpha had an invalid Go module declaration, so this implementation uses the stable SDK's 0.3 content representation. Parts include their upstream `kind` discriminator: for example `{"kind":"data","data":{...}}`. Do not combine 0.3 and 1.x field layouts.
+The Pi adapter pins the official MCP TypeScript SDK at 1.32.2. Install it with `npm ci --prefix /path/to/controls`, followed by `npm ci --prefix /path/to/registry`. The attempted A2A 1.0 alpha had an invalid Go module declaration, so this implementation uses the stable SDK's 0.3 content representation. Parts include their upstream `kind` discriminator: for example `{"kind":"data","data":{...}}`. Do not combine 0.3 and 1.x field layouts.
 
 This is **A2A content reuse**, not an A2A endpoint or a claim of A2A interoperability. We do not introduce Agent Cards, an A2A task state machine, or a second execution lifecycle. A full A2A boundary can be added when independently hosted A2A agents need to participate.
 

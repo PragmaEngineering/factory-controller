@@ -72,7 +72,7 @@ The host writes private JSON files for an invocation and passes their paths:
 | `FACTORY_PROMPT_PATH` | Assignment instructions, allowed outcomes, prior context and bound JSON values for an LLM. |
 | `FACTORY_INVOCATION_DIR` | Private runtime directory for this step visit/attempt, outside the project. |
 
-These supplement the existing execution/step IDs and scoped MCP connection. They contain no injected provider credential values. Packages still inherit the trusted service environment under the current host runner. Registry's Pi adapter automatically reads `FACTORY_PROMPT_PATH` if no explicit `-p` prompt was supplied; standalone Pi calls retain their existing behavior.
+These supplement the existing execution/step IDs and scoped MCP connection. They contain no injected provider credential values. Packages still inherit the trusted service environment under the current host runner. Controls' Pi adapter automatically reads `FACTORY_PROMPT_PATH` if no explicit `-p` prompt was supplied; standalone Pi calls retain their existing behavior.
 
 ## Publishing named outputs
 
@@ -97,4 +97,4 @@ An LLM receiving the evaluation pair gets the original task, exact evaluated que
 
 ## Registry example
 
-See [task readiness](../../registry/classifiers/task-readiness/README.md) and the [readiness → planning factory](../../registry/factories/readiness/README.md). The classification bundle currently uses the OpenRouter Decisions protocol. Controls remains provider-agnostic.
+See [task readiness](../../registry/classifiers/task-readiness/README.md) and the [Go coding factory](../../registry/factories/golang/README.md). The classification bundle currently uses the OpenRouter Decisions protocol. Controls remains provider-agnostic.

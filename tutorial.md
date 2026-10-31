@@ -4,13 +4,17 @@ This tutorial runs a Hello World task through a Go workflow: architecture, archi
 
 ## 1. Set up Factory
 
-Start in the `controls` checkout. This tutorial assumes the `registry` checkout is beside it. Install the CLI and terminal monitor as one binary:
+Start in the `controls` checkout, with `registry` beside it. Before setup, have Go, Node.js 22+, Pi, and `rg` installed. The Go coder and reviewer also need `gofmt`, `golangci-lint`, and `gopls`; see [agent prerequisites](../registry/agents/README.md#local-tool-preflight). The destination `~/.local/bin` must already be on `PATH`.
+
+Install the CLI/monitor binary and the separate managed-runtime dependencies:
 
 ```sh
 ./install.sh
+npm ci
+npm ci --prefix ../registry
 ```
 
-This installs `factory` in `~/.local/bin`, which must already be on your `PATH`. You can pass another `PATH` directory to the installer if you use one. You need Go to build it. The bundled agents also need Node.js and Pi; the Go coder and reviewer use `gopls` through MCP. Install those tools before running a workflow.
+`./install.sh` builds and installs only the Go binary as `factory`. Pass another directory on `PATH` to the installer if needed. The two `npm ci` commands install Controls’ adapter/SDK workspace first, then Registry’s local package dependencies. They do not install Pi, Go tools, or provider credentials.
 
 ## 2. Create the project and its workflow
 
@@ -163,11 +167,7 @@ Use this new project as a disposable first run.
 
 ### Runtime communication
 
-Before the first managed agent launch, install the registry adapter dependency:
-
-```sh
-npm ci --prefix /path/to/registry/resources
-```
+The setup commands in step 1 install the managed runtime dependencies.
 
 Factory provisions the MCP connection and communication skill automatically. Agent questions appear in `factory inbox` and the monitor. Reply with `factory answer REQUEST-ID "your response"`; choice requests require one of their listed options. Inspect the recent conversation with `factory EXECUTION-ID messages -o json`, or follow the complete execution stream.
 

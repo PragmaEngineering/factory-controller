@@ -1,0 +1,12 @@
+{
+  "name": "pragma-controls",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "adapters/pi",
+    "sdk/typescript"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present"
+  }
+}
