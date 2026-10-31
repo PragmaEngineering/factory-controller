@@ -9,7 +9,7 @@ A runnable package can be a coding agent, a script or a decision-model classifie
   "packages": [
     {
       "name": "readiness",
-      "path": "../registry/classifications/task-readiness",
+      "path": "../registry/classifiers/task-readiness",
       "entrypoint": "start.sh",
       "with": {
         "provider": "openrouter",
@@ -93,8 +93,8 @@ Bodies here are abbreviated. The package sends the original request and response
 
 Use `list_participants` to discover the controller, submit through `send_message`, and wait for `effect.state: accepted`. Accepted structured data is persisted with the result and travels in durable workflow history. It is inspectable in execution JSON (`steps[].result.data`) and the message audit. Process exit or writing a JSON file is not completion. The current MCP mutation limit remains 64 KiB including the envelope.
 
-An LLM receiving the evaluation pair gets the original task, exact evaluated questions/criteria and typed answers. It can formulate a contextual clarification question through the operator inbox. No confidence threshold, automatic branch, or feedback message template is required. Valid `clarify`/uncertain answers complete the evaluation call; transport errors, malformed answers and missing bindings are execution failures with the existing retry/recovery semantics.
+An LLM receiving the evaluation pair gets the original task, exact evaluated questions/criteria and typed answers. It can formulate a contextual clarification question through the operator inbox. Advisory use needs no threshold or feedback template. The readiness bundle also accepts optional `with.admission: {"minimum_probability":0.85}`: it returns `admitted` only for a selected `accept` meeting that probability and `review_required` otherwise. The example factory routes the latter to human admission before architecture. This is package policy using ordinary outcome routes, not a new control-plane conditional construct. Valid `clarify`/uncertain answers complete the evaluation call; transport errors, malformed answers and missing bindings are execution failures with the existing retry/recovery semantics.
 
 ## Registry example
 
-See [task readiness](../../registry/classifications/task-readiness/README.md) and the [readiness → planning factory](../../registry/factories/readiness/README.md). The classification bundle currently uses the OpenRouter Decisions protocol. Controls remains provider-agnostic.
+See [task readiness](../../registry/classifiers/task-readiness/README.md) and the [readiness → planning factory](../../registry/factories/readiness/README.md). The classification bundle currently uses the OpenRouter Decisions protocol. Controls remains provider-agnostic.
