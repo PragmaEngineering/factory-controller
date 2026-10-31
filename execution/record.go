@@ -1,6 +1,9 @@
 package execution
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type ExecutionState string
 
@@ -70,13 +73,15 @@ type StepAttempt struct {
 // A submitted result ends an attempt, even when its outcome routes back to an
 // earlier step. Submission is not task completion or human approval.
 type StepResult struct {
-	PublicationID string     `json:"publication_id,omitempty"`
-	Outcome       Outcome    `json:"outcome"`
-	Summary       string     `json:"summary"`
-	Artifacts     []Artifact `json:"artifacts,omitempty"`
-	Evidence      []Evidence `json:"evidence,omitempty"`
-	Actor         string     `json:"actor"`
-	At            time.Time  `json:"at"`
+	Data          map[string]json.RawMessage `json:"data,omitempty"`
+	Interruption  *Interruption              `json:"interruption,omitempty"`
+	PublicationID string                     `json:"publication_id,omitempty"`
+	Outcome       Outcome                    `json:"outcome"`
+	Summary       string                     `json:"summary"`
+	Artifacts     []Artifact                 `json:"artifacts,omitempty"`
+	Evidence      []Evidence                 `json:"evidence,omitempty"`
+	Actor         string                     `json:"actor"`
+	At            time.Time                  `json:"at"`
 }
 
 type Artifact struct {

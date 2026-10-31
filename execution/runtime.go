@@ -45,6 +45,9 @@ type CompletedStep struct {
 }
 
 type Progress struct {
+	Stage       string          `json:"stage,omitempty"`
+	StageVisit  uint            `json:"stage_visit,omitempty"`
+	Hook        *HookRun        `json:"hook,omitempty"`
 	Kind        string          `json:"kind"`
 	ExecutionID string          `json:"execution_id"`
 	Step        Step            `json:"step"`

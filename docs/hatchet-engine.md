@@ -19,3 +19,7 @@ Current limits: the controller is for a trusted local user and does not authenti
 Concurrent loops use `RunMany` to allocate all child invocations before awaiting results. Result waits can run together without allocating replay-sensitive actions in completion order. Routing and retry waits use configuration order. Each accepted member result comes from the shared communication service; the runner recovers it on replay instead of relaunching the process. A failed member interrupts peers through the observer and pauses the whole round for an explicit retry. The service reserves group capacity against the worker's package-slot count before process startup.
 
 Migrations `000003_comms` and `000004_publications` add conversations, participants, per-recipient cursors, idempotency receipts, requests, and exact publication bytes. Runtime MCP credentials do not expose internal engine credentials. The service API version detects old running binaries after this contract change.
+
+## Hook scheduling boundary
+
+The worker registers a separate utility task alongside execution and package tasks. The host exposes `execution.HookRunner`; `internal/hooks` implements it through supervised processes and persistent control-plane records without importing Hatchet. Hook JSON context and identity are scheduler-neutral. The durable graph places each hook at its execution/stage/step boundary, reuses successful task results on replay, and waits for the existing scoped retry event when a hook blocks. There is no Git code in the scheduler. See [lifecycle hooks](hooks.md).

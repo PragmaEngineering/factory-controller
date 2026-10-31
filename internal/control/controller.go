@@ -228,8 +228,14 @@ func (c *Controller) Cancel(ctx context.Context, executionID string) (Execution,
 			return false, nil
 		}
 		current.State = execution.ExecutionCancelled
+		for i := range current.Hooks {
+			if current.Hooks[i].State != "succeeded" {
+				current.Hooks[i].State = "cancelled"
+			}
+		}
 		current.CurrentStepID = ""
 		now := time.Now().UTC()
+		finishLifecycle(current, "cancelled", now)
 		for i := range current.Steps {
 			step := &current.Steps[i]
 			if step.State != "completed" && step.State != "failed" {
@@ -254,6 +260,14 @@ func (c *Controller) Cancel(ctx context.Context, executionID string) (Execution,
 	if record.WorkflowRunID != "" {
 		cleanupErrors = append(cleanupErrors, c.Engine.Cancel(ctx, record.WorkflowRunID))
 	}
+	for _, hook := range record.Hooks {
+		if hook.SessionID != "" {
+			session, err := c.Sessions.Get(hook.SessionID)
+			if err == nil && session.State == sessions.Running {
+				cleanupErrors = append(cleanupErrors, c.Sessions.Stop(hook.SessionID))
+			}
+		}
+	}
 	for _, step := range record.Steps {
 		for _, id := range step.Sessions {
 			session, err := c.Sessions.Get(id)
@@ -270,8 +284,11 @@ func (c *Controller) Retry(ctx context.Context, stepID, actor, reason string) (E
 	if err != nil {
 		return Execution{}, err
 	}
+	if kind == "hook" {
+		return c.retryHook(ctx, record, stepID, actor, reason)
+	}
 	if kind != "step" {
-		return Execution{}, errors.New("retry requires a step ID")
+		return Execution{}, errors.New("retry requires a step or hook ID")
 	}
 	var step Step
 	for _, candidate := range record.Steps {

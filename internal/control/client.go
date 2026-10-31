@@ -13,6 +13,7 @@ import (
 
 	"controls/execution"
 	"controls/internal/comms"
+	"controls/internal/reports"
 	"controls/internal/state"
 )
 
@@ -187,4 +188,17 @@ func (c *Client) Messages(ctx context.Context, id string) ([]comms.Message, erro
 	var messages []comms.Message
 	err := c.call(ctx, http.MethodGet, "/executions/"+url.PathEscape(id)+"/messages", nil, &messages)
 	return messages, err
+}
+
+func (c *Client) Report(ctx context.Context, query reports.Query) (reports.Document, error) {
+	var document reports.Document
+	err := c.call(ctx, http.MethodPost, "/reports", query, &document)
+	return document, err
+}
+func (c *Client) ReportTemplate(ctx context.Context) (string, error) {
+	var value struct {
+		Template string `json:"template"`
+	}
+	err := c.call(ctx, http.MethodGet, "/report-template", nil, &value)
+	return value.Template, err
 }

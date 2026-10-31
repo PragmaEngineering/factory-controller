@@ -172,3 +172,7 @@ npm ci --prefix /path/to/registry/resources
 Factory provisions the MCP connection and communication skill automatically. Agent questions appear in `factory inbox` and the monitor. Reply with `factory answer REQUEST-ID "your response"`; choice requests require one of their listed options. Inspect the recent conversation with `factory EXECUTION-ID messages -o json`, or follow the complete execution stream.
 
 This tutorial uses sequential loops. To configure concurrent peers, use [the loop-mode reference](docs/factory-json.md#loop-execution-mode) and adapt both routes and assignments. Merely changing the mode while retaining build→review internal routing is rejected.
+
+## Optional lifecycle utilities
+
+To prepare a Git branch and commit stage output deterministically, use the optional hooks in [factory.example.json](factory.example.json). Update their script paths for your Registry installation and choose explicit commit paths. Hooks are not required to run the tutorial. See the [hook contract](docs/hooks.md) for host prerequisites and retry behavior.

@@ -174,6 +174,9 @@ func (s *Service) applyPayload(ctx context.Context, tx pgx.Tx, p Participant, m 
 		if err != nil {
 			return nil, err
 		}
+		if result.Interruption != nil {
+			return nil, fault("invalid_result", "interruption is reserved for the host runtime")
+		}
 		var workRaw, resultRaw []byte
 		if err = tx.QueryRow(ctx, `SELECT work,result FROM factory.comms_participants WHERE id=$1`, p.ID).Scan(&workRaw, &resultRaw); err != nil {
 			return nil, err

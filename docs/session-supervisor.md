@@ -36,3 +36,11 @@ Idle waiting and model failure are distinct. A push-enabled adapter retains the 
 The registry Pi adapter hides the model-facing `wait_for_message` tool while its own MCP delivery client waits in the background. On `stopReason: length`, it issues at most two continuation prompts per invocation, retaining the existing Pi session and asking for incremental work. Set `FACTORY_PI_CONTINUATION_LIMIT` in the service environment before startup to change this to an integer from 0 to 10; 0 disables continuation. Recovery notices are captured in agent output. Exhaustion, provider errors, and aborted model turns terminate the session with the actual cause; the command runner blocks the attempt and the concurrent round stops its peers. Ordinary idle turns remain open. This is response continuation, not a new workflow round or step attempt.
 
 Cancellation is persisted before engine/session shutdown. Late shutdown progress cannot overwrite the cancelled execution, reopen its requests, or revive its steps. Repeating cancellation retries cleanup without adding another cancellation event.
+
+## Resource visibility and budgets
+
+Executable steps can define an optional `budget` with token, elapsed-time, and idle-time limits and an explicit warning, pause, or stop policy. See [live resources and step budgets](resources.md) for accounting semantics, configuration, recovery, and the runner telemetry protocol.
+
+## Lifecycle hooks
+
+Optional `hooks.before` and `hooks.after` objects run trusted utilities at execution, stage, or step boundaries. See the [hook contract](hooks.md) for configuration, JSON stdin, ordering, failure recovery, and the Registry Git example. Hook operations are separate from agent completion and do not require agent-specific integration.

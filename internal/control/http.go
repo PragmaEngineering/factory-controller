@@ -11,20 +11,34 @@ import (
 	"strings"
 
 	"controls/execution"
+	"controls/internal/reports"
 	"controls/internal/sessions"
 )
 
 type Resource struct {
-	Type        string            `json:"type"`
-	ExecutionID string            `json:"execution_id,omitempty"`
-	Execution   *Execution        `json:"execution,omitempty"`
-	Step        *Step             `json:"step,omitempty"`
-	Request     *Request          `json:"request,omitempty"`
-	Session     *sessions.Session `json:"session,omitempty"`
+	Hook        *execution.HookRun `json:"hook,omitempty"`
+	Type        string             `json:"type"`
+	ExecutionID string             `json:"execution_id,omitempty"`
+	Execution   *Execution         `json:"execution,omitempty"`
+	Step        *Step              `json:"step,omitempty"`
+	Request     *Request           `json:"request,omitempty"`
+	Session     *sessions.Session  `json:"session,omitempty"`
 }
 
 func Handler(controller *Controller) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /reports", func(w http.ResponseWriter, r *http.Request) {
+		var query reports.Query
+		if !decode(w, r, &query) {
+			return
+		}
+		document, err := controller.Store.Report(r.Context(), query)
+		result(w, http.StatusOK, document, err)
+	})
+	mux.HandleFunc("GET /report-template", func(w http.ResponseWriter, r *http.Request) {
+		source, err := reports.Template()
+		result(w, http.StatusOK, map[string]string{"template": source}, err)
+	})
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) {
 		respond(w, http.StatusOK, map[string]string{"api": "factory-control-v3"})
 	})
@@ -99,15 +113,15 @@ func Handler(controller *Controller) http.Handler {
 			resultResponse(w, nil, err)
 			return
 		}
-		if resource.Type != "execution" && resource.Type != "step" {
+		if resource.Type != "execution" && resource.Type != "step" && resource.Type != "hook" {
 			failure(w, http.StatusBadRequest, errors.New("events require an execution or step ID"))
 			return
 		}
 		events := resource.Execution.Events
-		if resource.Type == "step" {
+		if resource.Type == "step" || resource.Type == "hook" {
 			var filtered []Event
 			for _, event := range events {
-				if event.StepID == resource.Step.ID {
+				if (resource.Step != nil && event.StepID == resource.Step.ID) || (resource.Hook != nil && event.StepID == resource.Hook.ID) {
 					filtered = append(filtered, event)
 				}
 			}
@@ -207,7 +221,18 @@ func (c *Controller) Resource(id string) (Resource, error) {
 		if err = c.addInputRequests(&record); err != nil {
 			return Resource{}, err
 		}
+		if err := c.addResources(&record); err != nil {
+			return Resource{}, err
+		}
 		resource := Resource{Type: kind, ExecutionID: record.ID, Execution: &record}
+		if kind == "hook" {
+			for _, hook := range record.Hooks {
+				if hook.ID == id {
+					resource.Hook = &hook
+					break
+				}
+			}
+		}
 		if kind == "step" {
 			for _, step := range record.Steps {
 				if step.ID == id {
@@ -248,7 +273,23 @@ func (c *Controller) Logs(id string) (string, error) {
 	if resource.Type == "step" {
 		ids = append(ids, resource.Step.Sessions...)
 	}
+	if resource.Type == "hook" {
+		all, err := c.Sessions.List(resource.ExecutionID)
+		if err != nil {
+			return "", err
+		}
+		for _, session := range all {
+			if session.StepID == id {
+				ids = append(ids, session.ID)
+			}
+		}
+	}
 	if resource.Type == "execution" {
+		for _, hook := range resource.Execution.Hooks {
+			if hook.SessionID != "" {
+				ids = append(ids, hook.SessionID)
+			}
+		}
 		for _, step := range resource.Execution.Steps {
 			ids = append(ids, step.Sessions...)
 		}

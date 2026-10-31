@@ -23,6 +23,7 @@ const PackageSlots = 10
 const (
 	executionTaskName = "factory-execution"
 	packageTaskName   = "factory-package"
+	hookTaskName      = "factory-hook"
 	decisionEventName = "factory:decision"
 	retryEventName    = "factory:retry"
 	// A durable execution includes human decisions and explicit retry waits.
@@ -65,6 +66,7 @@ type Engine struct {
 	observer      Observer
 	executionTask *hatchet.StandaloneTask
 	packageTask   *hatchet.StandaloneTask
+	hookTask      *hatchet.StandaloneTask
 }
 
 func New(client *hatchet.Client, runner Runner, observers ...Observer) (*Engine, error) {
@@ -82,6 +84,13 @@ func New(client *hatchet.Client, runner Runner, observers ...Observer) (*Engine,
 		},
 		hatchet.WithExecutionTimeout(packageTimeout),
 	)
+	e.hookTask = client.NewStandaloneTask(hookTaskName, func(ctx hatchet.Context, work execution.HookWork) (execution.HookRun, error) {
+		host, ok := runner.(execution.HookRunner)
+		if !ok {
+			return execution.HookRun{}, errors.New("host does not implement lifecycle hooks")
+		}
+		return host.RunHook(ctx, work)
+	}, hatchet.WithExecutionTimeout(packageTimeout))
 	e.executionTask = client.NewStandaloneDurableTask(executionTaskName,
 		func(ctx hatchet.DurableContext, input Input) (Output, error) {
 			return e.run(ctx, input)
@@ -98,10 +107,10 @@ func (e *Engine) record(ctx context.Context, progress Progress) error {
 	return e.observer.Record(ctx, progress)
 }
 
-// NewWorker registers both task types. The caller owns the worker lifecycle.
+// NewWorker registers execution, package, and hook tasks. The caller owns the worker lifecycle.
 func (e *Engine) NewWorker(name string) (*hatchet.Worker, error) {
 	return e.client.NewWorker(name,
-		hatchet.WithWorkflows(e.executionTask, e.packageTask),
+		hatchet.WithWorkflows(e.executionTask, e.packageTask, e.hookTask),
 		hatchet.WithSlots(PackageSlots),
 		hatchet.WithDurableSlots(10),
 	)

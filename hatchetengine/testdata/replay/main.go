@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,11 +22,27 @@ import (
 
 type runner struct {
 	calls         atomic.Int32
+	hookCalls     atomic.Int32
+	hooksMu       sync.Mutex
+	hookContexts  []execution.HookContext
 	communication *comms.Service
 }
 
 func (r *runner) Run(ctx context.Context, work hatchetengine.Work) (execution.StepResult, error) {
 	r.calls.Add(1)
+	if work.Step.Budget != nil {
+		if work.Try == 1 {
+			return execution.StepResult{Interruption: &execution.Interruption{Action: work.Step.Budget.Action, Reason: "Budget limit: fixture"}}, nil
+		}
+		return execution.StepResult{Outcome: "done", Summary: "done", Actor: "test", At: time.Now().UTC()}, nil
+	}
+	if len(work.Step.Hooks.Before) > 0 {
+		outcome := execution.Outcome("done")
+		if work.Step.ID == "review" && work.Visit == 1 {
+			outcome = "again"
+		}
+		return execution.StepResult{Outcome: outcome, Summary: "done", Actor: string(work.Step.ID) + "-instance", At: time.Now().UTC()}, nil
+	}
 	if len(work.Peers) > 0 {
 		return r.collaborate(ctx, work)
 	}
@@ -181,7 +198,13 @@ func run(ctx context.Context) (runErr error) {
 	if got := packageRunner.calls.Load(); got != 1 {
 		return fmt.Errorf("replay ran the builder %d times, want one persisted result", got)
 	}
-	return checkConcurrent(ctx, engine, progress, packageRunner, client)
+	if err := checkConcurrent(ctx, engine, progress, packageRunner, client); err != nil {
+		return err
+	}
+	if err := checkBudgets(ctx, engine, progress, packageRunner); err != nil {
+		return err
+	}
+	return checkHooks(ctx, engine, progress, packageRunner, client)
 }
 
 func main() {

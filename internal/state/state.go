@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"controls/internal/telemetry"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -152,6 +153,25 @@ func (s *Store) AppendOutput(ctx context.Context, id string, body []byte, activi
 	}
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx, `INSERT INTO factory.output(session_id,body) VALUES ($1,$2)`, id, body); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO factory.records(kind,id,content) VALUES ('telemetry',$1,'{}'::jsonb) ON CONFLICT DO NOTHING`, id); err != nil {
+		return err
+	}
+	var raw []byte
+	if err := tx.QueryRow(ctx, `SELECT content FROM factory.records WHERE kind='telemetry' AND id=$1 FOR UPDATE`, id).Scan(&raw); err != nil {
+		return err
+	}
+	var projection telemetry.Projection
+	if err := json.Unmarshal(raw, &projection); err != nil {
+		return err
+	}
+	projection.Append(body, time.Now().UTC())
+	encoded, err := json.Marshal(projection)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE factory.records SET content=$2 WHERE kind='telemetry' AND id=$1`, id, encoded); err != nil {
 		return err
 	}
 	if activity.ExecutionID != "" {

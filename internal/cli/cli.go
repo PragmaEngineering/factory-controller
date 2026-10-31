@@ -17,6 +17,7 @@ import (
 	"controls/internal/control"
 	"controls/internal/dashboard"
 	"controls/internal/sessions"
+	"controls/internal/telemetry"
 )
 
 type option struct {
@@ -34,12 +35,15 @@ func Help(w io.Writer) {
   factory get-context | set-context ID | contexts
   factory inbox [--context ID]
   factory monitor
+  factory report [EXECUTION-ID] [--factory NAME] [--from DATE] [--to DATE] [-o html|json|template]
+  factory report --snapshot ID [-o html|json]
+  factory mcp
   factory ID [-o json | stream [-f] | attach | logs [-f] | events [-f] | messages | send TEXT | send --file FILE]
-  factory retry STEP-ID [--reason TEXT]
+  factory retry STEP-OR-HOOK-ID [--reason TEXT]
   factory answer REQUEST-ID OUTCOME [--reason TEXT]
   factory cancel EXECUTION-ID
 
-An ID names one execution, step visit, agent session, or decision request.
+An ID names one execution, step visit, hook invocation, session, or decision request.
 The selected context starts as * (all contexts); explicit IDs work in any context.
 `)
 }
@@ -50,6 +54,13 @@ func Run(ctx context.Context, args []string, client *control.Client, sessionClie
 		return nil
 	}
 	switch args[0] {
+	case "report":
+		return reportCommand(ctx, args[1:], client, stdout)
+	case "mcp":
+		if len(args) != 1 {
+			return errors.New("usage: factory mcp")
+		}
+		return serveOperatorMCP(ctx, client)
 	case "exec":
 		return execCommand(ctx, args[1:], client, stdin, stdout)
 	case "ls":
@@ -207,6 +218,11 @@ func listCommand(ctx context.Context, args []string, client *control.Client, std
 				break
 			}
 		}
+		for _, hook := range item.Hooks {
+			if hook.ID == item.CurrentStepID {
+				current = "hook/" + hook.Context.Name
+			}
+		}
 		action := "—"
 		for _, request := range item.Requests {
 			if request.State == "pending" {
@@ -282,7 +298,7 @@ func retryCommand(ctx context.Context, args []string, client *control.Client, st
 		return err
 	}
 	if len(positionals) != 1 {
-		return errors.New("usage: factory retry STEP-ID [--reason TEXT]")
+		return errors.New("usage: factory retry STEP-OR-HOOK-ID [--reason TEXT]")
 	}
 	record, err := client.Retry(ctx, positionals[0], last(options["reason"]), actor())
 	if err != nil {
@@ -481,6 +497,16 @@ func showResource(ctx context.Context, id string, client *control.Client, stdout
 		if record.Error != "" {
 			fmt.Fprintf(stdout, "Error %s\n", publicText(record.Error))
 		}
+		printResources(stdout, record.Resources)
+		if len(record.Hooks) > 0 {
+			fmt.Fprintln(stdout, "\nHOOKS")
+			for _, hook := range record.Hooks {
+				fmt.Fprintf(stdout, "%s/%s %-20s %-10s try %d %s\n", hook.Context.Scope, hook.Context.Boundary, hook.Context.Name, hook.State, hook.Try, hook.ID)
+				if hook.Error != "" {
+					fmt.Fprintln(stdout, "  "+publicText(hook.Error))
+				}
+			}
+		}
 		fmt.Fprintln(stdout, "\nWORKFLOW")
 		for _, definition := range record.Configuration.Workflow.Steps {
 			stage := definition.Stage
@@ -498,6 +524,7 @@ func showResource(ctx context.Context, id string, client *control.Client, stdout
 					fmt.Fprintf(stdout, "  %s", publicText(step.Error))
 				}
 				fmt.Fprintln(stdout)
+				printResources(stdout, step.Resources)
 				for _, sessionID := range step.Sessions {
 					fmt.Fprintf(stdout, "  agent session %s  (factory %s attach)\n", sessionID, sessionID)
 				}
@@ -523,12 +550,42 @@ func showResource(ctx context.Context, id string, client *control.Client, stdout
 		if step.Error != "" {
 			fmt.Fprintf(stdout, "Error %s\n", publicText(step.Error))
 		}
+		printResources(stdout, step.Resources)
 		for _, session := range step.Sessions {
 			fmt.Fprintf(stdout, "Session %s\n", session)
 		}
 	case "session":
 		session := resource.Session
 		fmt.Fprintf(stdout, "Session %s · %s\nExecution %s · step %s\nState %s · runner %s · PID %d\n", session.ID, session.Name, session.ExecutionID, session.StepID, session.State, session.Runner, session.PID)
+		printResources(stdout, &session.Resources)
+		end := time.Now()
+		if session.EndedAt != nil {
+			end = *session.EndedAt
+		}
+		fmt.Fprintf(stdout, "Elapsed %s\n", end.Sub(session.StartedAt).Truncate(time.Second))
+		progress := session.StartedAt
+		if session.Resources.LastProgressAt != nil {
+			progress = *session.Resources.LastProgressAt
+		}
+		fmt.Fprintf(stdout, "Since progress %s\n", max(time.Duration(0), end.Sub(progress)).Truncate(time.Second))
+		if command := session.Resources.Command(); command != "" && session.State == sessions.Running {
+			fmt.Fprintf(stdout, "Current command %s\n", publicText(command))
+		}
+		for _, notice := range session.BudgetNotices {
+			fmt.Fprintln(stdout, notice.Message)
+		}
+	case "hook":
+		hook := resource.Hook
+		fmt.Fprintf(stdout, "Hook %s · %s\nExecution %s\nScope %s · %s · stage %s · step %s\nState %s · try %d\n", hook.ID, hook.Context.Name, resource.ExecutionID, hook.Context.Scope, hook.Context.Boundary, hook.Context.Stage, hook.Context.Step, hook.State, hook.Try)
+		if hook.SessionID != "" {
+			fmt.Fprintf(stdout, "Session %s\n", hook.SessionID)
+		}
+		if hook.Error != "" {
+			fmt.Fprintf(stdout, "Error %s\n", publicText(hook.Error))
+		}
+		if hook.State == "blocked" {
+			fmt.Fprintf(stdout, "ACTION retry %s\n", hook.ID)
+		}
 	case "request":
 		request := resource.Request
 		fmt.Fprintf(stdout, "Request %s\nExecution %s · step %s\nState %s\n%s\nOptions: %s\n", request.ID, request.ExecutionID, request.StepID, request.State, request.Prompt, request.Options)
@@ -734,4 +791,11 @@ func parse(args []string, allowed map[string]option) ([]string, map[string][]str
 		return nil, nil, fmt.Errorf("unsupported output format %q", output)
 	}
 	return positional, options, nil
+}
+
+func printResources(w io.Writer, s *telemetry.Summary) {
+	if s == nil {
+		return
+	}
+	fmt.Fprintf(w, "%s\nTool failures %s · cost %s\n", s.Usage(), s.Failures(), s.Cost())
 }

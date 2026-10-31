@@ -1,6 +1,7 @@
 package sessions
 
 import "time"
+import "controls/internal/telemetry"
 
 type State string
 
@@ -16,27 +17,30 @@ const (
 // subagent to the session that started it. A runner's private subagents cannot
 // be discovered without that runner reporting them.
 type Session struct {
-	ID           string     `json:"id"`
-	ParentID     string     `json:"parent_id,omitempty"`
-	ExecutionID  string     `json:"execution_id,omitempty"`
-	StepID       string     `json:"step_id,omitempty"`
-	Visit        uint       `json:"visit,omitempty"`
-	Try          uint       `json:"try,omitempty"`
-	Name         string     `json:"name"`
-	Runner       string     `json:"runner"`
-	Owner        string     `json:"owner,omitempty"`
-	InputMode    string     `json:"input_mode"`
-	State        State      `json:"state"`
-	PID          int        `json:"pid,omitempty"`
-	StartedAt    time.Time  `json:"started_at"`
-	LastOutputAt *time.Time `json:"last_output_at,omitempty"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-	ExitCode     *int       `json:"exit_code,omitempty"`
+	BudgetNotices []BudgetNotice    `json:"budget_notices,omitempty"`
+	Resources     telemetry.Summary `json:"resources"`
+	ID            string            `json:"id"`
+	ParentID      string            `json:"parent_id,omitempty"`
+	ExecutionID   string            `json:"execution_id,omitempty"`
+	StepID        string            `json:"step_id,omitempty"`
+	Visit         uint              `json:"visit,omitempty"`
+	Try           uint              `json:"try,omitempty"`
+	Name          string            `json:"name"`
+	Runner        string            `json:"runner"`
+	Owner         string            `json:"owner,omitempty"`
+	InputMode     string            `json:"input_mode"`
+	State         State             `json:"state"`
+	PID           int               `json:"pid,omitempty"`
+	StartedAt     time.Time         `json:"started_at"`
+	LastOutputAt  *time.Time        `json:"last_output_at,omitempty"`
+	EndedAt       *time.Time        `json:"ended_at,omitempty"`
+	ExitCode      *int              `json:"exit_code,omitempty"`
 }
 
 // Launch starts an agent command without a shell. Environment values are
 // passed to the process but never written to the session record.
 type Launch struct {
+	Stdin       string            `json:"stdin,omitempty"`
 	ParentID    string            `json:"parent_id,omitempty"`
 	ExecutionID string            `json:"execution_id,omitempty"`
 	StepID      string            `json:"step_id,omitempty"`

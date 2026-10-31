@@ -1,6 +1,6 @@
 {
   "name": "example-coding",
-  "agents": [
+  "packages": [
     {
       "name": "builder",
       "path": "./agents/builder",
@@ -29,32 +29,63 @@
           "steps": [
             {
               "name": "build",
-              "type": "agent",
-              "agent": "builder",
+              "type": "run",
               "title": "Implement the request",
               "instructions": "Implement the request in the project and report the changes and checks performed.",
               "on": {
                 "ready_for_review": "review",
                 "failed": "$blocked"
+              },
+              "budget": {
+                "tokens": 2000000,
+                "elapsed_seconds": 1800,
+                "idle_seconds": 600,
+                "warn_percent": 80,
+                "action": "pause"
+              },
+              "package": "builder",
+              "input_bindings": {
+                "task": {
+                  "execution": "input"
+                }
               }
             },
             {
               "name": "review",
-              "type": "agent",
-              "agent": "reviewer",
+              "type": "run",
               "title": "Review the implementation",
               "instructions": "Review the work against the request. Return changes_requested with specific findings or completed when it is ready for human acceptance.",
               "on": {
                 "changes_requested": "build",
                 "completed": "acceptance",
                 "failed": "$blocked"
-              }
+              },
+              "package": "reviewer"
             }
           ]
         },
         "human": {
           "required": true,
           "step": "acceptance"
+        },
+        "hooks": {
+          "after": [
+            {
+              "name": "commit-implementation",
+              "command": "python3",
+              "arguments": [
+                "../registry/skills/git-commit/scripts/commit.py",
+                "--type",
+                "chore",
+                "--scope",
+                "implementation",
+                "--description",
+                "complete implementation stage",
+                "--path",
+                "."
+              ]
+            }
+          ]
         }
       }
     ],
@@ -69,6 +100,31 @@
           "request_changes": "build",
           "reject": "$blocked"
         }
+      }
+    ]
+  },
+  "hooks": {
+    "before": [
+      {
+        "name": "work-branch",
+        "command": "python3",
+        "arguments": [
+          "../registry/skills/git-work-branch/scripts/prepare.py",
+          "--base",
+          "HEAD",
+          "--prefix",
+          "execution/"
+        ]
+      }
+    ],
+    "after": [
+      {
+        "name": "release-checkout",
+        "command": "python3",
+        "arguments": [
+          "../registry/skills/git-work-branch/scripts/prepare.py",
+          "--release"
+        ]
       }
     ]
   }

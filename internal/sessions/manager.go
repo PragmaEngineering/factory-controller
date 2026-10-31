@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"controls/internal/state"
+	"controls/internal/telemetry"
 
 	"github.com/creack/pty"
 	"github.com/google/uuid"
@@ -81,8 +82,8 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	if request.InputMode == "" {
 		request.InputMode = "queue"
 	}
-	if request.InputMode != "queue" && request.InputMode != "pty" {
-		return Session{}, errors.New("input mode must be queue or pty")
+	if request.InputMode != "queue" && request.InputMode != "pty" && request.InputMode != "none" {
+		return Session{}, errors.New("input mode must be queue, pty, or none")
 	}
 	if request.Directory == "" {
 		return Session{}, errors.New("working directory is required")
@@ -117,7 +118,13 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	for name, value := range request.Environment {
 		command.Env = append(command.Env, name+"="+value)
 	}
-	terminal, err := pty.Start(command)
+	var terminal *os.File
+	if request.InputMode == "none" {
+		command.Stdin = strings.NewReader(request.Stdin)
+		terminal, err = pty.StartWithAttrs(command, nil, &syscall.SysProcAttr{Setsid: true})
+	} else {
+		terminal, err = pty.Start(command)
+	}
 	if err != nil {
 		return Session{}, fmt.Errorf("launch %s: %w", request.Name, err)
 	}
@@ -163,7 +170,11 @@ func (m *Manager) captureOutput(session Session, terminal *os.File, done chan<- 
 			// Never discard output during a temporary database outage: holding
 			// this read also applies backpressure to the agent's PTY.
 			for {
-				writeErr := m.db.AppendOutput(context.Background(), session.ID, buf[:n], state.Activity{ExecutionID: session.ExecutionID, SessionID: session.ID, Source: "agent/" + session.Name + "/" + session.ID[:8]})
+				source := "agent/" + session.Name + "/" + session.ID[:8]
+				if session.Runner == "hook" {
+					source = session.Name + "/" + session.ID[:8]
+				}
+				writeErr := m.db.AppendOutput(context.Background(), session.ID, buf[:n], state.Activity{ExecutionID: session.ExecutionID, SessionID: session.ID, Source: source})
 				if writeErr == nil {
 					break
 				}
@@ -229,6 +240,9 @@ func (m *Manager) List(executionID string) ([]Session, error) {
 			return nil, err
 		}
 		if executionID == "" || session.ExecutionID == executionID {
+			if err := m.resources(&session); err != nil {
+				return nil, err
+			}
 			result = append(result, session)
 		}
 	}
@@ -242,7 +256,20 @@ func (m *Manager) Get(id string) (Session, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, os.ErrNotExist
 	}
+	if err == nil {
+		err = m.resources(&session)
+	}
 	return session, err
+}
+
+func (m *Manager) resources(session *Session) error {
+	var p telemetry.Projection
+	err := m.db.Get(context.Background(), "telemetry", session.ID, &p)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	session.Resources = p.Summary
+	return err
 }
 
 func (m *Manager) Output(id string, offset int64, limit int) (Output, error) {
@@ -271,8 +298,8 @@ func (m *Manager) Send(id, body string) (Message, error) {
 		return Message{}, errors.New("message must contain 1 to 16384 bytes")
 	}
 	session, err := m.Get(id)
-	if err != nil || session.State != Running {
-		return Message{}, errors.New("agent session is not running")
+	if err != nil || session.State != Running || session.InputMode == "none" {
+		return Message{}, errors.New("session is not running or does not accept interactive input")
 	}
 	message := Message{ID: uuid.NewString(), SessionID: id, Body: body, State: MessageQueued, CreatedAt: time.Now().UTC()}
 	if err := m.db.Create(context.Background(), "message", message.ID, message); err != nil {

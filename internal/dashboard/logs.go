@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"controls/internal/state"
+	"controls/internal/telemetry"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
@@ -69,6 +70,19 @@ func parseLogRecord(source, line string, at time.Time) logEntry {
 	}
 	entry.failed = event.Error || (event.Success != nil && !*event.Success)
 	switch event.Type {
+	case telemetry.Protocol:
+		var metric telemetry.Event
+		_ = json.Unmarshal([]byte(line), &metric)
+		entry.kind = "RESOURCE"
+		entry.body = metric.Kind
+		if metric.Kind == "usage" {
+			s := telemetry.Summary{Tokens: metric.Tokens, Samples: 1}
+			if metric.CostUSD != nil {
+				s.CostSamples = 1
+				s.CostUSD = *metric.CostUSD
+			}
+			entry.body = s.Usage() + " · cost " + s.Cost()
+		}
 	case "tool_execution_start":
 		entry.kind = "TOOL"
 		entry.body = event.Tool + "\n" + string(event.Args)
@@ -225,6 +239,31 @@ func (m model) logEntryDialog() *dialog {
 }
 
 func (m model) detailLines(width, height int) []string {
+	var heading []string
+	if agent := m.activeSession(); m.tab == 1 && agent != nil && agent.Runner != "hook" {
+		end := time.Now()
+		if agent.EndedAt != nil {
+			end = *agent.EndedAt
+		}
+		progress := agent.StartedAt
+		if agent.Resources.LastProgressAt != nil {
+			progress = *agent.Resources.LastProgressAt
+		}
+		heading = append(heading, wrapWorkflowText(agent.Resources.Usage(), width, accent)...)
+		heading = append(heading, wrapWorkflowText(fmt.Sprintf("Elapsed %s · since progress %s · tool failures %s · cost %s", duration(end.Sub(agent.StartedAt)), duration(end.Sub(progress)), agent.Resources.Failures(), agent.Resources.Cost()), width, dim)...)
+		if command := agent.Resources.Command(); command != "" && agent.State == "running" {
+			heading = append(heading, wrapWorkflowText("Running: "+ansi.Truncate(terminalLine(command), max(1, width*2-9), "…"), width, bright)...)
+		}
+		if len(agent.BudgetNotices) > 0 {
+			heading = append(heading, wrapWorkflowText(agent.BudgetNotices[len(agent.BudgetNotices)-1].Message, width, warn)...)
+		}
+	}
+	if len(heading) >= height {
+		return heading[:max(0, height)]
+	}
+	return append(heading, m.logDetailLines(width, height-len(heading))...)
+}
+func (m model) logDetailLines(width, height int) []string {
 	if m.rawLogs {
 		return m.rawDetailLines(width, height)
 	}

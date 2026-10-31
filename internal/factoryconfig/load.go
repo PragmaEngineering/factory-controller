@@ -19,8 +19,10 @@ import (
 // Definition is the project-facing factory.json format. Paths in it are
 // resolved relative to the file, never relative to the CLI process.
 type Definition struct {
-	Name     string  `json:"name"`
-	Agents   []Agent `json:"agents"`
+	Hooks    execution.Hooks `json:"hooks,omitempty"`
+	Name     string          `json:"name"`
+	Agents   []Package       `json:"agents,omitempty"`
+	Packages []Package       `json:"packages,omitempty"`
 	Workflow struct {
 		Start  string  `json:"start"`
 		Stages []Stage `json:"stages,omitempty"`
@@ -29,9 +31,10 @@ type Definition struct {
 }
 
 type Stage struct {
-	Name  string `json:"name"`
-	Loop  *Loop  `json:"loop"`
-	Human *Human `json:"human,omitempty"`
+	Hooks execution.Hooks `json:"hooks,omitempty"`
+	Name  string          `json:"name"`
+	Loop  *Loop           `json:"loop"`
+	Human *Human          `json:"human,omitempty"`
 }
 
 type Loop struct {
@@ -45,25 +48,31 @@ type Human struct {
 	Step     string `json:"step,omitempty"`
 }
 
-type Agent struct {
-	Name       string   `json:"name"`
-	Path       string   `json:"path"`
-	Entrypoint string   `json:"entrypoint"`
-	Args       []string `json:"args,omitempty"`
+// Package selects an independently runnable bundle. With is interpreted by that bundle.
+type Package struct {
+	With       map[string]json.RawMessage `json:"with,omitempty"`
+	Name       string                     `json:"name"`
+	Path       string                     `json:"path"`
+	Entrypoint string                     `json:"entrypoint"`
+	Args       []string                   `json:"args,omitempty"`
 }
 
 type Step struct {
-	Name         string              `json:"name"`
-	Type         string              `json:"type"`
-	Agent        string              `json:"agent,omitempty"`
-	Title        string              `json:"title,omitempty"`
-	Instructions string              `json:"instructions,omitempty"`
-	Inputs       []string            `json:"inputs,omitempty"`
-	Outputs      []string            `json:"outputs,omitempty"`
-	OutputsOn    []execution.Outcome `json:"outputs_on,omitempty"`
-	Artifacts    []string            `json:"artifacts,omitempty"`
-	Actor        string              `json:"actor,omitempty"`
-	On           map[string]string   `json:"on"`
+	Package       string                            `json:"package,omitempty"`
+	InputBindings map[string]execution.InputBinding `json:"input_bindings,omitempty"`
+	Hooks         execution.Hooks                   `json:"hooks,omitempty"`
+	Budget        *execution.Budget                 `json:"budget,omitempty"`
+	Name          string                            `json:"name"`
+	Type          string                            `json:"type"`
+	Agent         string                            `json:"agent,omitempty"`
+	Title         string                            `json:"title,omitempty"`
+	Instructions  string                            `json:"instructions,omitempty"`
+	Inputs        []string                          `json:"inputs,omitempty"`
+	Outputs       []string                          `json:"outputs,omitempty"`
+	OutputsOn     []execution.Outcome               `json:"outputs_on,omitempty"`
+	Artifacts     []string                          `json:"artifacts,omitempty"`
+	Actor         string                            `json:"actor,omitempty"`
+	On            map[string]string                 `json:"on"`
 }
 
 type Resolved struct {
@@ -107,7 +116,7 @@ func Load(path string) (Resolved, error) {
 	if definition.Name == "" {
 		return Resolved{}, fmt.Errorf("%s: name is required", abs)
 	}
-	config := execution.Configuration{Workflow: execution.Workflow{
+	config := execution.Configuration{Hooks: definition.Hooks, Workflow: execution.Workflow{
 		Name:  definition.Name,
 		Start: execution.StepID(definition.Workflow.Start),
 	}}
@@ -125,7 +134,7 @@ func Load(path string) (Resolved, error) {
 		if stage.Loop == nil {
 			return Resolved{}, fmt.Errorf("%s: stage %q requires a loop containing its steps", abs, stage.Name)
 		}
-		resolved := execution.Stage{ID: stage.Name, Loop: &execution.LoopPolicy{Limit: stage.Loop.Limit, Mode: stage.Loop.Mode}}
+		resolved := execution.Stage{Hooks: stage.Hooks, ID: stage.Name, Loop: &execution.LoopPolicy{Limit: stage.Loop.Limit, Mode: stage.Loop.Mode}}
 		for _, step := range stage.Loop.Steps {
 			resolved.Steps = append(resolved.Steps, execution.StepID(step.Name))
 			stageByStep[step.Name] = stage.Name
@@ -152,15 +161,16 @@ func Load(path string) (Resolved, error) {
 			steps = append(steps, step)
 		}
 	}
-	agents := make(map[string]Agent, len(definition.Agents))
-	for _, agent := range definition.Agents {
-		if agent.Name == "" || agent.Path == "" || agent.Entrypoint == "" {
-			return Resolved{}, fmt.Errorf("%s: each agent needs name, path, and entrypoint", abs)
+	packages := append(append([]Package{}, definition.Packages...), definition.Agents...)
+	registered := make(map[string]Package, len(packages))
+	for _, pkg := range packages {
+		if pkg.Name == "" || pkg.Path == "" || pkg.Entrypoint == "" {
+			return Resolved{}, fmt.Errorf("%s: each package needs name, path, and entrypoint", abs)
 		}
-		if _, exists := agents[agent.Name]; exists {
-			return Resolved{}, fmt.Errorf("%s: duplicate agent %q", abs, agent.Name)
+		if _, exists := registered[pkg.Name]; exists {
+			return Resolved{}, fmt.Errorf("%s: duplicate package %q", abs, pkg.Name)
 		}
-		packagePath := agent.Path
+		packagePath := pkg.Path
 		if !filepath.IsAbs(packagePath) {
 			packagePath = filepath.Join(filepath.Dir(abs), packagePath)
 		}
@@ -169,24 +179,25 @@ func Load(path string) (Resolved, error) {
 			return Resolved{}, err
 		}
 		if info, err := os.Stat(root); err != nil || !info.IsDir() {
-			return Resolved{}, fmt.Errorf("%s: agent %q directory %s is unavailable", abs, agent.Name, root)
+			return Resolved{}, fmt.Errorf("%s: package %q directory %s is unavailable", abs, pkg.Name, root)
 		}
-		entrypoint := filepath.Join(root, agent.Entrypoint)
+		entrypoint := filepath.Join(root, pkg.Entrypoint)
 		if info, err := os.Stat(entrypoint); err != nil || info.IsDir() {
-			return Resolved{}, fmt.Errorf("%s: agent %q entrypoint %s is unavailable", abs, agent.Name, entrypoint)
+			return Resolved{}, fmt.Errorf("%s: package %q entrypoint %s is unavailable", abs, pkg.Name, entrypoint)
 		}
-		agent.Path = root
-		agents[agent.Name] = agent
+		pkg.Path = root
+		registered[pkg.Name] = pkg
 		settings, _ := json.Marshal(struct {
-			Entrypoint string   `json:"entrypoint"`
-			Args       []string `json:"args,omitempty"`
-		}{agent.Entrypoint, agent.Args})
+			With       map[string]json.RawMessage `json:"with,omitempty"`
+			Entrypoint string                     `json:"entrypoint"`
+			Args       []string                   `json:"args,omitempty"`
+		}{pkg.With, pkg.Entrypoint, pkg.Args})
 		digest, err := packagehash.Directory(root)
 		if err != nil {
-			return Resolved{}, fmt.Errorf("hash agent %q: %w", agent.Name, err)
+			return Resolved{}, fmt.Errorf("hash package %q: %w", pkg.Name, err)
 		}
 		config.Packages = append(config.Packages, execution.PackageSnapshot{
-			Name: agent.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
+			Name: pkg.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
 		})
 	}
 	for _, step := range steps {
@@ -194,8 +205,8 @@ func Load(path string) (Resolved, error) {
 		if title == "" {
 			title = step.Name
 		}
-		resolved := execution.Step{ID: execution.StepID(step.Name), Stage: stageByStep[step.Name], Title: title, Instructions: step.Instructions,
-			Inputs: step.Inputs, Outputs: step.Outputs, OutputsOn: step.OutputsOn, Routes: make(map[execution.Outcome]execution.StepID, len(step.On))}
+		resolved := execution.Step{Hooks: step.Hooks, Budget: step.Budget, ID: execution.StepID(step.Name), Stage: stageByStep[step.Name], Title: title, Instructions: step.Instructions,
+			InputBindings: step.InputBindings, Inputs: step.Inputs, Outputs: step.Outputs, OutputsOn: step.OutputsOn, Routes: make(map[execution.Outcome]execution.StepID, len(step.On))}
 		for outcome, target := range step.On {
 			switch target {
 			case "$done":
@@ -206,13 +217,23 @@ func Load(path string) (Resolved, error) {
 			resolved.Routes[execution.Outcome(outcome)] = execution.StepID(target)
 		}
 		switch step.Type {
-		case "agent":
-			if _, exists := agents[step.Agent]; !exists {
-				return Resolved{}, fmt.Errorf("%s: step %q references unknown agent %q", abs, step.Name, step.Agent)
+		case "agent", "run":
+			selected := step.Package
+			if step.Type == "agent" {
+				selected = step.Agent
+			}
+			if selected == "" || (step.Type == "run" && step.Agent != "") || (step.Type == "agent" && step.Package != "") {
+				return Resolved{}, fmt.Errorf("%s: step %q must select its package with %s", abs, step.Name, map[string]string{"run": "package", "agent": "agent"}[step.Type])
+			}
+			if _, exists := registered[selected]; !exists {
+				return Resolved{}, fmt.Errorf("%s: step %q references unknown package %q", abs, step.Name, selected)
 			}
 			resolved.Kind = execution.RunStep
-			resolved.Run = &execution.RunSpec{Package: step.Agent}
+			resolved.Run = &execution.RunSpec{Package: selected}
 		case "decision":
+			if step.Agent != "" || step.Package != "" {
+				return Resolved{}, fmt.Errorf("%s: decision step %q cannot reference a runnable package", abs, step.Name)
+			}
 			resolved.Kind = execution.DecisionStep
 			options := make([]execution.Outcome, 0, len(step.On))
 			for outcome := range step.On {

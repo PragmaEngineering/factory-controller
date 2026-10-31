@@ -102,12 +102,17 @@ func (m model) actionsDialog() *dialog {
 		if m.pendingRequest() != nil {
 			items = append(items, "Answer decision")
 		}
-		if m.retryStep() != nil {
-			items = append(items, "Retry blocked step")
+		if m.retryStep() != nil || m.retryHook() != nil {
+			items = append(items, "Retry blocked operation")
 		}
 		if agent := m.activeSession(); agent != nil && agent.State == sessions.Running {
-			items = append(items, "Message agent")
+			if agent.InputMode != "none" {
+				items = append(items, "Message agent")
+			}
 			items = append(items, "Stop agent session")
+		}
+		if m.retryHook() != nil {
+			items = append(items, "Inspect hook")
 		}
 		items = append(items, "Inspect step")
 		if cancellable(current.State) {
@@ -187,6 +192,9 @@ func (m model) answerDialog(request *control.Request) *dialog {
 
 func (m model) retryDialog() *dialog {
 	step := m.retryStep()
+	if hook := m.retryHook(); hook != nil {
+		return &dialog{kind: "retry", title: "Retry blocked hook", targetID: hook.ID, detail: hook.Context.Name + " · " + hook.Error, fields: []field{inputField("Reason", "", "What changed before retrying?")}}
+	}
 	if step == nil {
 		return nil
 	}
@@ -444,8 +452,13 @@ func (m model) chooseOption() (tea.Model, tea.Cmd) {
 			m.dialog = m.contextDialog()
 		case "Answer decision":
 			m.dialog = m.answerDialog(m.pendingRequest())
-		case "Retry blocked step":
+		case "Retry blocked operation":
 			m.dialog = m.retryDialog()
+		case "Inspect hook":
+			hook := m.retryHook()
+			if hook != nil {
+				m.dialog = &dialog{kind: "inspect", title: "Hook · " + hook.Context.Name, detail: fmt.Sprintf("%s/%s\nID %s\nState %s · try %d\nSession %s\n%s", hook.Context.Scope, hook.Context.Boundary, hook.ID, hook.State, hook.Try, hook.SessionID, hook.Error)}
+			}
 		case "Message agent":
 			m.dialog = m.messageDialog()
 		case "Stop agent session":
@@ -913,4 +926,17 @@ func (m model) dialogView() string {
 
 func wrapLine(line string, width int) []string {
 	return strings.Split(ansi.Wrap(terminalText(line), max(1, width), ""), "\n")
+}
+
+func (m model) retryHook() *execution.HookRun {
+	current := m.currentExecution()
+	if current == nil || current.State != execution.ExecutionBlocked {
+		return nil
+	}
+	for _, hook := range current.Hooks {
+		if hook.ID == current.CurrentStepID && hook.State == "blocked" {
+			return &hook
+		}
+	}
+	return nil
 }

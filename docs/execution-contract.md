@@ -67,3 +67,19 @@ Structured agent communication uses MCP and A2A content parts as defined in the 
 See the [communication contract](../comms.md) for the eight MCP tools, A2A content types, typed payloads, unread cursors, publication, and current limits. The runtime injects a scoped connection and shared skill; no completion file is used.
 
 `loop.mode` is `sequential` by default or `concurrent`. Concurrent members start together, stay available between turns, and share a thread. A failed process interrupts the round and stops peers; manual retry restarts that round's members with new attempts. The loop limit counts rounds, not messages. The containing stage retains human decision requirements. `factory EXECUTION-ID messages` and the monitor expose recent conversations; the execution event stream retains complete activity.
+
+## Resource visibility and budgets
+
+Executable steps can define an optional `budget` with token, elapsed-time, and idle-time limits and an explicit warning, pause, or stop policy. See [live resources and step budgets](resources.md) for accounting semantics, configuration, recovery, and the runner telemetry protocol.
+
+## Lifecycle hooks
+
+Optional `hooks.before` and `hooks.after` objects run trusted utilities at execution, stage, or step boundaries. See the [hook contract](hooks.md) for configuration, JSON stdin, ordering, failure recovery, and the Registry Git example. Hook operations are separate from agent completion and do not require agent-specific integration.
+
+## Persisted reporting observations
+
+The controller records stage entry/exit visits, step visits, individual attempt timestamps/results/failures, and terminal execution time alongside lifecycle events. Replayed events retain the first recorded observation. Reports use those persisted observations and structured telemetry, not interpreted agent prose. See [execution reports](reports.md) for immutable snapshots and measurement limits.
+
+## Named result data and bindings
+
+Run-step results may include `data`, a map of named JSON values persisted with the accepted result. A step can bind its inputs to the original execution input or a named value from a preceding completed step visit. Missing values fail before launch; concurrent peers cannot establish ordering through bindings. Provider/agent adapters consume this common contract without scheduler-specific logic. See [packages and explicit inputs](packages.md).

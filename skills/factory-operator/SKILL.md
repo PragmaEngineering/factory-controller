@@ -44,7 +44,7 @@ Let the configured agents perform their assignments and review loops. Do not man
 
 ## Recover and report
 
-On failure, inspect the execution, failing step, and relevant session output. Identify the observed error, its cause when supported, and the affected work. A blocked step can be retried using its runtime step ID. Follow the user's recovery policy; absent one, obtain direction before repeating work with side effects. Do not loop retries, resubmit the whole workflow as a repair, or edit pinned packages mid-execution. A terminal failure is not automatically retryable. Preserve diagnostics when recovery is rejected.
+On failure, inspect the execution, failing step or hook, and relevant session output. Identify the observed error, its cause when supported, and the affected work. A blocked step or lifecycle hook can be retried using its runtime ID. A hook retry repeats only that utility; it does not rerun completed agents. Hook sessions are noninteractive: inspect their logs rather than sending agent messages. Inspect interrupted external effects before retrying a hook, because its command may already have changed the project. Follow the user's recovery policy; absent one, obtain direction before repeating work with side effects. Do not loop retries, resubmit the whole workflow as a repair, or edit pinned packages mid-execution. A terminal failure is not automatically retryable. Preserve diagnostics when recovery is rejected.
 
 Cancel only the intended execution when requested. Stopping a log follower or closing the monitor leaves work running; cancellation is a separate action. Never stop the shared service to cancel one execution.
 

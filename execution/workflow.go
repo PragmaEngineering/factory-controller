@@ -39,6 +39,7 @@ type Workflow struct {
 // Steps[0] is the entry point for each round. A route back to that entry
 // starts another round; a human decision, when required, sits at the boundary.
 type Stage struct {
+	Hooks Hooks        `json:"hooks,omitempty"`
 	ID    string       `json:"id"`
 	Steps []StepID     `json:"steps"`
 	Loop  *LoopPolicy  `json:"loop,omitempty"`
@@ -59,6 +60,7 @@ type HumanPolicy struct {
 // Configuration is an immutable, fully resolved execution definition. It
 // contains no secret values; Settings may contain references to secrets.
 type Configuration struct {
+	Hooks    Hooks             `json:"hooks,omitempty"`
 	Workflow Workflow          `json:"workflow"`
 	Packages []PackageSnapshot `json:"packages"`
 }
@@ -86,18 +88,21 @@ type AccessProfile struct {
 }
 
 type Step struct {
-	ID           StepID             `json:"id"`
-	Stage        string             `json:"stage,omitempty"`
-	Title        string             `json:"title,omitempty"`
-	Instructions string             `json:"instructions,omitempty"`
-	Kind         StepKind           `json:"kind"`
-	Inputs       []string           `json:"inputs,omitempty"`
-	Outputs      []string           `json:"outputs,omitempty"`
-	OutputsOn    []Outcome          `json:"outputs_on,omitempty"`
-	Run          *RunSpec           `json:"run,omitempty"`
-	Decision     *DecisionSpec      `json:"decision,omitempty"`
-	Retry        RetryPolicy        `json:"retry,omitempty"`
-	Routes       map[Outcome]StepID `json:"routes"`
+	InputBindings map[string]InputBinding `json:"input_bindings,omitempty"`
+	Hooks         Hooks                   `json:"hooks,omitempty"`
+	Budget        *Budget                 `json:"budget,omitempty"`
+	ID            StepID                  `json:"id"`
+	Stage         string                  `json:"stage,omitempty"`
+	Title         string                  `json:"title,omitempty"`
+	Instructions  string                  `json:"instructions,omitempty"`
+	Kind          StepKind                `json:"kind"`
+	Inputs        []string                `json:"inputs,omitempty"`
+	Outputs       []string                `json:"outputs,omitempty"`
+	OutputsOn     []Outcome               `json:"outputs_on,omitempty"`
+	Run           *RunSpec                `json:"run,omitempty"`
+	Decision      *DecisionSpec           `json:"decision,omitempty"`
+	Retry         RetryPolicy             `json:"retry,omitempty"`
+	Routes        map[Outcome]StepID      `json:"routes"`
 }
 
 // RunSpec names an independently runnable package in the same configuration.

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Factory}} · execution review</title>
+<style>/*DOCUMENT_STYLE*/
+/*REPORT_STYLE*/
+</style>
+</head>
+<body>
+<header class="document-header">
+<div class="eyebrow">EXECUTION REVIEW / CONTROL-PLANE SNAPSHOT</div>
+<h1>{{.Factory}} · execution review</h1>
+<dl class="metadata">
+<div>
+<dt>Snapshot</dt>
+<dd>{{time .AsOf}}</dd>
+</div>
+<div>
+<dt>History window</dt>
+<dd>{{time .From}} → {{time .To}} (exclusive)</dd>
+</div>
+<div>
+<dt>Template version</dt>
+<dd>{{.Version}}</dd>
+</div>
+</dl>
+</header>
+<div class="document-layout">
+<nav aria-label="Report sections">
+<div class="nav-heading">CONTENTS</div>
+<a href="#summary">01 Execution summary</a>
+<a href="#measurements">02 Recorded measurements</a>
+<a href="#history">03 Factory history</a>
+<a href="#assessments">04 Assessments</a>
+<a href="#quality">05 Quality measures</a>
+<a href="#methodology">06 Methodology</a>
+</nav>
+<main>
+<div class="part">
+<div class="eyebrow">EXECUTION SUMMARY</div>
+<p>Identity and recorded outcome</p>
+</div>
+<section id="summary">
+<h2>01 Execution summary</h2>{{with .Selected}}<dl class="metadata">
+<div>
+<dt>Execution</dt>
+<dd>{{.ID}}</dd>
+</div>
+<div>
+<dt>Controller state</dt>
+<dd>{{.State}}</dd>
+</div>
+<div>
+<dt>Wall time</dt>
+<dd>{{duration .CreatedAt .FinishedAt}}</dd>
+</div>
+</dl>
+<div class="metrics">
+<div class="metric">
+<strong>{{tokens .Resources}}</strong>
+<span>Reported tokens</span>
+</div>
+<div class="metric">
+<strong>{{.Resources.Samples}}</strong>
+<span>Reported model responses</span>
+</div>
+<div class="metric">
+<strong>{{.Resources.ToolFailures}}</strong>
+<span>Recorded tool failures</span>
+</div>
+</div>{{if .Error}}<p class="note">
+<strong>Recorded execution failure:</strong> {{.Error}}</p>{{end}}<p class="subtle">Reported cost: {{.Resources.Cost}} · Unreported sessions: {{.Resources.UnreportedSessions}}. Completion is a controller state, not a quality verdict.</p>{{else}}<p>Factory history report; no execution selected.</p>{{end}}</section>
+<div class="part">
+<div class="eyebrow">RECORDED MEASUREMENTS</div>
+<p>Persisted counts, timestamps and lifecycle state</p>
+</div>
+<section id="measurements">
+<h2>02 Stages, steps and agents</h2>{{with .Selected}}<h3>Actual stage visits</h3>
+<div class="stage-list">{{range .Stages}}<div class="stage">
+<strong>{{.Name}} · visit {{.Visit}}</strong>
+<span>{{.State}}</span>
+<small>{{duration .StartedAt .FinishedAt}}</small>
+</div>{{else}}<p>Stage lifecycle data unavailable for this execution.</p>{{end}}</div>
+<h3>Step visits</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Stage / step</th>
+<th>Visit</th>
+<th>State</th>
+<th>Wall time</th>
+<th>Tokens</th>
+<th>Responses</th>
+<th>Tool failures</th>
+</tr>
+</thead>
+<tbody>{{range .Steps}}<tr>
+<td>{{.Stage}} / {{.Name}}</td>
+<td>{{.Visit}}</td>
+<td>{{.State}}{{if .Error}}<br>{{.Error}}{{end}}</td>
+<td>{{duration .StartedAt .FinishedAt}}</td>
+<td>{{tokens .Resources}}</td>
+<td>{{.Resources.Samples}}</td>
+<td>{{.Resources.ToolFailures}}</td>
+</tr>{{end}}</tbody>
+</table>
+</div>
+<h3>Attempt history</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Step / visit</th>
+<th>Attempt</th>
+<th>State</th>
+<th>Duration</th>
+<th>Failure</th>
+</tr>
+</thead>
+<tbody>{{range .Steps}}{{$step := .}}{{range .Attempts}}<tr>
+<td>{{$step.Name}} / {{$step.Visit}}</td>
+<td>{{.Try}}</td>
+<td>{{.State}}</td>
+<td>{{duration .StartedAt .FinishedAt}}</td>
+<td>{{.Error}}</td>
+</tr>{{end}}{{end}}</tbody>
+</table>
+</div>
+<h3>Lifecycle hooks</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Hook</th>
+<th>Scope / boundary</th>
+<th>Attempt</th>
+<th>State</th>
+<th>Failure</th>
+</tr>
+</thead>
+<tbody>{{range .Hooks}}<tr>
+<td>{{.Name}}</td>
+<td>{{.Scope}} / {{.Boundary}}</td>
+<td>{{.Try}}</td>
+<td>{{.State}}</td>
+<td>{{.Error}}</td>
+</tr>{{end}}</tbody>
+</table>
+</div>
+<h3>Agent sessions / reported models</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Session</th>
+<th>Runner</th>
+<th>Provider</th>
+<th>Last reported model</th>
+</tr>
+</thead>
+<tbody>{{range .Agents}}<tr>
+<td>{{.Name}}</td>
+<td>{{.SessionID}}</td>
+<td>{{.Runner}}</td>
+<td>{{.Provider}}</td>
+<td>{{.Model}}</td>
+</tr>{{end}}</tbody>
+</table>
+</div>
+<p class="subtle">Step durations can overlap. Sessions without structured usage have unknown token consumption. Historical attempts or stage timestamps are not reconstructed from prose.</p>{{else}}<p>Select an execution for detailed lifecycle data.</p>{{end}}</section>
+<section id="history">
+<h2>03 Factory history</h2>
+<div class="metrics">
+<div class="metric">
+<strong>{{.Statistics.Completed}} / {{.Statistics.Executions}}</strong>
+<span>Completed / all selected executions</span>
+</div>
+<div class="metric">
+<strong>{{number .Statistics.MeanTokens}}</strong>
+<span>Mean reported tokens · n={{.Statistics.UsageN}}</span>
+</div>
+<div class="metric">
+<strong>{{number .Statistics.MeanCompletedSeconds}} s</strong>
+<span>Mean completed duration · n={{.Statistics.CompletedTimeN}}</span>
+</div>
+</div>
+<figure>
+<h3>Reported tokens over time</h3>{{range .History}}<div class="bar-row">
+<span>{{time .CreatedAt}}</span>
+<div class="bar">
+<i style="width:{{width .Resources}}">
+</i>
+</div>
+<span>{{tokens .Resources}}</span>
+</div>{{end}}<figcaption>All selected states are retained, including failures. Missing consumption is unknown, not zero.</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Execution / start UTC</th>
+<th>State</th>
+<th>Tokens</th>
+<th>Responses</th>
+<th>Wall time</th>
+<th>Configuration digest</th>
+</tr>
+</thead>
+<tbody>{{range .History}}<tr>
+<td>{{.ID}}<br>{{time .CreatedAt}}</td>
+<td>{{.State}}</td>
+<td>{{tokens .Resources}}</td>
+<td>{{.Resources.Samples}}</td>
+<td>{{duration .CreatedAt .FinishedAt}}</td>
+<td>
+<code>{{.ConfigDigest}}</code>
+</td>
+</tr>{{end}}</tbody>
+</table>
+</div>
+<p class="note">These are operational statistics, not controlled eval scores. A factory name alone does not establish the same scenario, assessment policy or accounting coverage. Completed-only duration excludes incomplete runs.</p>
+</section>
+<div class="part">
+<div class="eyebrow">ASSESSMENTS</div>
+<p>Agent and human judgments; distinct from measurements</p>
+</div>
+<section id="assessments">
+<h2>04 Attributed assessments</h2>{{with .Selected}}<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Step</th>
+<th>Actor</th>
+<th>Outcome</th>
+<th>Recorded statement</th>
+</tr>
+</thead>
+<tbody>{{range .Assessments}}<tr>
+<td>{{.Source}}</td>
+<td>{{.Step}}</td>
+<td>{{.Actor}}</td>
+<td>{{.Outcome}}</td>
+<td>{{.Summary}}</td>
+</tr>{{else}}<tr>
+<td colspan="5">No assessments recorded.</td>
+</tr>{{end}}</tbody>
+</table>
+</div>{{else}}<p>Select an execution to inspect attributed assessments.</p>{{end}}<p class="subtle">An agent reporting passing tests is an attributed claim unless structured check evidence was captured independently. A human approval is recorded consent, not a test result.</p>
+</section>
+<section id="quality">
+<h2>05 Quality measures</h2>
+<h3>Automated checks · not collected by this report service</h3>
+<p>Test and regression pass counts, coverage, static-analysis findings and changed-function complexity require versioned check results tied to the source revision. Missing measurements remain unavailable. Tool-failure rates require completed-call denominators, which are not yet projected.</p>
+</section>
+<div class="part">
+<div class="eyebrow">METHODOLOGY &amp; SOURCES</div>
+<p>Reproducibility and measurement limits</p>
+</div>
+<section id="methodology">
+<h2>06 Snapshot contract</h2>
+<p>Report ID: <code>{{.ID}}</code>. All data was read in one database snapshot, then persisted as an immutable report record. Fetching this ID renders the saved snapshot using its stored HTML; no agents, tests or judges are invoked.</p>
+<p>Accounting: <code>{{.Accounting}}</code>. Cached tokens are included; reasoning is not added twice. A model field is the last value reported for its session, not proof that only one model was used.</p>
+<p>History includes executions created within the UTC interval [from, to). An explicitly selected execution is shown even outside that history window. No scenario or assessment identity is inferred from factory names or agent text. Source configuration and environment secrets are excluded.</p>
+</section>
+</main>
+</div>
+<footer class="document-footer">Control-plane execution review · offline HTML · measurements and assessments are separate</footer>
+</body>
+</html>

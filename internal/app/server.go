@@ -15,6 +15,7 @@ import (
 	"controls/internal/commandrunner"
 	"controls/internal/comms"
 	"controls/internal/control"
+	"controls/internal/hooks"
 	"controls/internal/sessions"
 	"controls/internal/state"
 
@@ -68,7 +69,7 @@ func Serve(ctx context.Context, root string) error {
 		}
 		go func() { <-serviceContext.Done(); stopComms() }()
 		controller := &control.Controller{Store: store, Sessions: manager, Root: root, Comms: communication}
-		runner := commandrunner.Runner{Sessions: manager, Recorder: store, Root: root, Comms: communication}
+		runner := commandrunner.Runner{Hooks: hooks.Runner{Recorder: store, Sessions: manager}, Sessions: manager, Recorder: store, Root: root, Comms: communication}
 		engine, err := hatchetengine.New(client, runner, control.ProgressObserver{Store: store, Sessions: manager, Comms: communication})
 		if err != nil {
 			return nil, err

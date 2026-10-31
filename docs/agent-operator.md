@@ -52,3 +52,9 @@ Other useful requests:
 The skill records execution/context IDs, follows status and output, delivers feedback to the selected agent session, and presents pending decisions. Human decisions stay with the user unless explicitly delegated. It rechecks requests before answering because the user may also act through the monitor.
 
 This is an operator skill, not the runtime-injected `control-plane-comms` skill used by workflow agents. It is workflow agnostic: no particular stages, outputs, review roles, or software-development process are assumed. It does not create a new factory definition or launch an individual agent independently; single-agent factory configuration is a separate design discussion.
+
+Lifecycle hook failures are inspected and retried through the same CLI using their hook IDs. The operator skill distinguishes these utilities from interactive agent sessions and checks external effects before repeating them. See the [hook contract](hooks.md).
+
+## Reports
+
+Use `factory report EXECUTION-ID -o json` for a persisted execution review and the last 90 days of its factory history. `factory report --factory NAME` produces factory history alone. [Report commands and the operator MCP tool](reports.md) share the same service; report generation does not run agents or judges. Measurements and attributed assessments remain distinct.

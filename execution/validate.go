@@ -7,12 +7,24 @@ import (
 // Validate rejects configurations whose routes or package references cannot
 // execute. It runs before an execution is started.
 func Validate(config Configuration) error {
+	if err := config.Hooks.Validate(); err != nil {
+		return fmt.Errorf("execution hooks: %w", err)
+	}
 	workflow := config.Workflow
 	if workflow.Name == "" || workflow.Start == "" {
 		return fmt.Errorf("workflow name and start step are required")
 	}
 	steps := make(map[StepID]Step, len(workflow.Steps))
 	for _, step := range workflow.Steps {
+		if err := step.Hooks.Validate(); err != nil {
+			return fmt.Errorf("step %q hooks: %w", step.ID, err)
+		}
+		if err := step.Budget.Validate(); err != nil {
+			return fmt.Errorf("step %q: %w", step.ID, err)
+		}
+		if step.Budget != nil && step.Kind != RunStep {
+			return fmt.Errorf("step %q: budgets require a run step", step.ID)
+		}
 		if step.ID == "" || step.ID == Complete || step.ID == Fail {
 			return fmt.Errorf("invalid step ID %q", step.ID)
 		}
@@ -97,6 +109,9 @@ func Validate(config Configuration) error {
 			}
 		}
 	}
+	if err := validateBindings(workflow, steps); err != nil {
+		return err
+	}
 	if err := validateStages(workflow.Stages, steps); err != nil {
 		return err
 	}
@@ -107,6 +122,9 @@ func validateStages(stages []Stage, steps map[StepID]Step) error {
 	stageIDs := make(map[string]struct{}, len(stages))
 	owners := make(map[StepID]string)
 	for _, stage := range stages {
+		if err := stage.Hooks.Validate(); err != nil {
+			return fmt.Errorf("stage %q hooks: %w", stage.ID, err)
+		}
 		if stage.ID == "" || len(stage.Steps) == 0 {
 			return fmt.Errorf("stage requires an ID and at least one step")
 		}

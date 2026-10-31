@@ -1,6 +1,7 @@
 package sessions
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,4 +149,33 @@ func waitForState(t *testing.T, manager *Manager, id string, expected State) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("session %s did not reach %s", id, expected)
+}
+
+func TestResourceProjectionAndBudgetNoticesSurviveReopen(t *testing.T) {
+	root := t.TempDir()
+	db := testdb.Open(t)
+	manager, err := Open(root, "", db)
+	require.NoError(t, err)
+	line := `{"type":"factory.telemetry.v1","sequence":1,"kind":"usage","tokens":{"input":10,"cache_read":90,"output":3}}`
+	session, err := manager.Launch(Launch{Name: "fixture", Runner: "shell", ExecutionID: "execution", Directory: root, Command: []string{"/bin/sh", "-c", "printf '%s\\n' '" + line + "'"}})
+	require.NoError(t, err)
+	waitForState(t, manager, session.ID, Exited)
+	require.NoError(t, manager.ReportBudget(session.ID, "tokens/warning", "Budget warning"))
+	require.NoError(t, manager.ReportBudget(session.ID, "tokens/warning", "Budget warning"))
+	manager, err = Open(root, "", db)
+	require.NoError(t, err)
+	loaded, err := manager.Get(session.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 103, loaded.Resources.Tokens.Total())
+	require.Len(t, loaded.BudgetNotices, 1)
+	require.Equal(t, "unknown", loaded.Resources.Cost())
+	items, err := db.Activity(context.Background(), "execution", 0, 500)
+	require.NoError(t, err)
+	count := 0
+	for _, item := range items {
+		if item.Source == "budget/fixture" {
+			count++
+		}
+	}
+	require.Equal(t, 1, count)
 }

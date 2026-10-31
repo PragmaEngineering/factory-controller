@@ -8,6 +8,8 @@ import (
 
 	"controls/execution"
 	"controls/internal/control"
+	"controls/internal/sessions"
+	"controls/internal/telemetry"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -167,7 +169,41 @@ func (m model) workflowSummary(width int, now time.Time) []string {
 	if len(active) > 1 {
 		progress = "Active: " + strings.Join(active, " · ")
 	}
-	return []string{ansi.Truncate(summary, width, "…"), tint(ansi.Truncate(progress, width, "…"), dim, false)}
+	usage := telemetry.Summary{}
+	for _, session := range m.sessions {
+		if session.ExecutionID == current.ID && session.Runner != "hook" {
+			usage.Include(session.Resources)
+		}
+	}
+	resource := fmt.Sprintf("Reported tokens %s · tool failures %s · cost %s", compactCount(usage.Tokens.Total()), usage.Failures(), usage.Cost())
+	if usage.Samples == 0 {
+		resource = "Usage unreported · cost unknown"
+	}
+	if usage.UnreportedSessions > 0 {
+		resource += fmt.Sprintf(" · %d unreported sessions", usage.UnreportedSessions)
+	}
+	lines := []string{ansi.Truncate(summary, width, "…"), tint(ansi.Truncate(progress, width, "…"), dim, false), tint(ansi.Truncate(resource, width, "…"), dim, false)}
+	if len(current.Hooks) > 0 {
+		succeeded := 0
+		for _, hook := range current.Hooks {
+			if hook.State == "succeeded" {
+				succeeded++
+			}
+		}
+		text := fmt.Sprintf("Hooks %d/%d complete", succeeded, len(current.Hooks))
+		color := dim
+		for _, hook := range current.Hooks {
+			if hook.ID == current.CurrentStepID {
+				text += fmt.Sprintf(" · %s/%s %s · %s", hook.Context.Scope, hook.Context.Boundary, hook.Context.Name, hook.State)
+				if hook.Error != "" {
+					text += " · " + terminalLine(hook.Error)
+				}
+				color = warn
+			}
+		}
+		lines = append(lines, tint(ansi.Truncate(text, width, "…"), color, false))
+	}
+	return lines
 }
 
 func (m model) stageHeading(stage workflowStage) string {
@@ -410,6 +446,34 @@ func (m model) stepCard(step execution.Step, width int, selected bool, now time.
 		detail += fmt.Sprintf(" · try %d", visit.Try)
 	}
 	rows = append(rows, wrapWorkflowText(detail, inner, dim)...)
+	if visit := m.latestWorkflowVisit(step.ID); visit != nil && step.Run != nil {
+		usage := telemetry.Summary{}
+		for _, session := range m.sessions {
+			if session.StepID != visit.ID {
+				continue
+			}
+			usage.Include(session.Resources)
+			if session.State == sessions.Running {
+				progress := session.StartedAt
+				if session.Resources.LastProgressAt != nil {
+					progress = *session.Resources.LastProgressAt
+				}
+				rows = append(rows, wrapWorkflowText("Since progress "+duration(now.Sub(progress)), inner, dim)...)
+				if command := session.Resources.Command(); command != "" {
+					rows = append(rows, wrapWorkflowText("Running: "+ansi.Truncate(terminalLine(command), max(1, inner*2-9), "…"), inner, bright)...)
+				}
+			}
+			if len(session.BudgetNotices) > 0 {
+				rows = append(rows, wrapWorkflowText(session.BudgetNotices[len(session.BudgetNotices)-1].Message, inner, warn)...)
+			}
+		}
+		label := "Tokens unknown"
+		if usage.Samples > 0 {
+			label = fmt.Sprintf("Tokens %s · in %s · cache R/W %s/%s · out %s", compactCount(usage.Tokens.Total()), compactCount(usage.Tokens.Input), compactCount(usage.Tokens.CacheRead), compactCount(usage.Tokens.CacheWrite), compactCount(usage.Tokens.Output))
+		}
+		rows = append(rows, wrapWorkflowText(label, inner, dim)...)
+		rows = append(rows, wrapWorkflowText(fmt.Sprintf("Tool failures %s · cost %s", usage.Failures(), usage.Cost()), inner, dim)...)
+	}
 	cardBorder := lipgloss.RoundedBorder()
 	if step.Decision != nil {
 		cardBorder = lipgloss.DoubleBorder()
@@ -444,4 +508,14 @@ func executionElapsed(record *control.Execution, now time.Time) string {
 
 func duration(value time.Duration) string {
 	return max(time.Duration(0), value).Truncate(time.Second).String()
+}
+
+func compactCount(n uint64) string {
+	if n >= 1000000 {
+		return fmt.Sprintf("%.1fM", float64(n)/1000000)
+	}
+	if n >= 1000 {
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprint(n)
 }

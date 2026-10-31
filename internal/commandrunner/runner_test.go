@@ -46,7 +46,8 @@ func (h *testSessionHost) Launch(args sessions.Launch) (sessions.Session, error)
 func (*testSessionHost) Get(string) (sessions.Session, error) {
 	return sessions.Session{State: sessions.Exited}, nil
 }
-func (*testSessionHost) Stop(string) error { return nil }
+func (*testSessionHost) Stop(string) error                         { return nil }
+func (*testSessionHost) ReportBudget(string, string, string) error { return nil }
 func (h *testSessionHost) Output(string, int64, int) (sessions.Output, error) {
 	if h.output != "" {
 		return sessions.Output{Text: h.output}, nil
@@ -138,4 +139,31 @@ func TestAdapterFailureCauseReachesBlockedAttempt(t *testing.T) {
 	require.ErrorContains(t, err, "stopReason=length")
 	require.ErrorContains(t, err, "continuation limit 2 exhausted")
 	require.True(t, communication.ended)
+}
+
+func TestBoundJSONAndPackageSettingsReachTheWorker(t *testing.T) {
+	work := fixture(t)
+	work.Step.InputBindings = map[string]execution.InputBinding{"task": {Execution: "input"}, "evaluation_response": {Step: "evaluate", Output: "response"}}
+	work.Brief = "Investigate a timeout"
+	work.History = []execution.CompletedStep{{Step: "evaluate", Visit: 1, Result: execution.StepResult{Data: map[string]json.RawMessage{"response": json.RawMessage(`{"answers":{"readiness":{"choice":"clarify"}}}`)}}}}
+	work.Package.Settings = json.RawMessage(`{"entrypoint":"run.sh","with":{"model":"pinned","api_key_env":"MY_KEY"}}`)
+	communication := &testCommunication{connection: comms.Connection{New: true, URL: "http://localhost/mcp", ThreadID: "thread", ParticipantID: "worker"}}
+	host := &testSessionHost{launch: func(args sessions.Launch) {
+		var values map[string]json.RawMessage
+		raw, err := os.ReadFile(args.Environment["FACTORY_INPUTS_PATH"])
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(raw, &values))
+		require.JSONEq(t, `{"answers":{"readiness":{"choice":"clarify"}}}`, string(values["evaluation_response"]))
+		raw, err = os.ReadFile(args.Environment["FACTORY_PACKAGE_CONFIG"])
+		require.NoError(t, err)
+		require.JSONEq(t, `{"model":"pinned","api_key_env":"MY_KEY"}`, string(raw))
+		prompt, err := os.ReadFile(args.Environment["FACTORY_PROMPT_PATH"])
+		require.NoError(t, err)
+		require.Contains(t, string(prompt), "evaluation_response")
+		require.Contains(t, string(prompt), "clarify")
+		require.Equal(t, work.Project, args.Directory)
+		communication.result = &execution.StepResult{Outcome: "ready", Summary: "done"}
+	}}
+	_, err := (Runner{Sessions: host, Recorder: testRecorder{}, Comms: communication, Root: t.TempDir()}).Run(context.Background(), work)
+	require.NoError(t, err)
 }

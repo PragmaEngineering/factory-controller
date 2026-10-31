@@ -1,6 +1,6 @@
 # Factory Workflows
 
-Factory runs configured agent workflows. A workflow has agent or decision steps with explicit outcomes and routes. Stages can bound review loops and require human approval before work proceeds. [Hatchet](https://docs.hatchet.run/v1/durable-execution) currently schedules durable executions; Factory's control plane records contexts, step attempts, sessions, decisions, and events for the CLI. The control plane uses a Go workflow-engine interface, and the scheduler uses a separate package-runner interface. This keeps Hatchet and agent launchers replaceable without changing Factory's policy or CLI.
+Factory runs configured agent workflows. A workflow has runnable-package or decision steps with explicit outcomes and routes. Stages can bound review loops and require human approval before work proceeds. [Hatchet](https://docs.hatchet.run/v1/durable-execution) currently schedules durable executions; Factory's control plane records contexts, step attempts, sessions, decisions, and events for the CLI. The control plane uses a Go workflow-engine interface, and the scheduler uses a separate package-runner interface. This keeps Hatchet and agent launchers replaceable without changing Factory's policy or CLI.
 
 To operate a configured workflow from Codex, Claude Code, or another agent, use the [Factory operator skill](skills/factory-operator/SKILL.md). See [installation and invocation](docs/agent-operator.md) for manually starting runs, following progress, messaging agents, and handling decisions through your agent session.
 
@@ -21,6 +21,7 @@ factory exec "Another task" -c /path/to/project/factory.json
 
 factory ls
 factory monitor                             # live terminal view of executions and agents
+factory report EXECUTION-ID > report.html    # execution review + last 90 days of factory history
 factory get-context
 factory set-context CONTEXT-ID               # * means all contexts
 factory inbox
@@ -61,3 +62,11 @@ FACTORY_MONITOR_PREVIEW=/tmp/factory-monitor-preview go test ./internal/dashboar
 ```
 
 The files contain ANSI output from the actual views with fictional fixture data. The monitor uses Bubble Tea for interaction, Lip Gloss for shared surfaces and status styles, Bubbles for input/scrolling/activity, and Glamour for expanded Markdown. Its data and workflow semantics remain in the control plane.
+
+[Live resource metrics and step budgets](docs/resources.md) cover per-attempt limits, usage accounting, and runtime adapter integration.
+
+[Lifecycle hooks](docs/hooks.md) inject deterministic utilities before and after executions, stages, and steps; the example includes optional Registry Git branch/commit hooks.
+
+[Execution reports](docs/reports.md) separates persisted measurements from attributed assessments, with CLI and operator MCP access.
+
+[Packages and explicit inputs](docs/packages.md) covers agents, scripts, classification bundles, package settings and named JSON handoffs. [Readiness → planning](../registry/factories/readiness/README.md) passes an original Jev request/response to an architect agent.

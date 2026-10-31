@@ -15,6 +15,7 @@ import (
 	"controls/execution"
 	"controls/internal/inputs"
 	"controls/internal/state"
+	"controls/internal/telemetry"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -26,17 +27,21 @@ type Context struct {
 }
 
 type Step struct {
-	ID         string            `json:"id"`
-	Key        execution.StepID  `json:"key"`
-	Title      string            `json:"title,omitempty"`
-	Visit      uint              `json:"visit"`
-	Try        uint              `json:"try"`
-	State      string            `json:"state"`
-	Outcome    execution.Outcome `json:"outcome,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Sessions   []string          `json:"sessions,omitempty"`
-	StartedAt  time.Time         `json:"started_at"`
-	FinishedAt *time.Time        `json:"finished_at,omitempty"`
+	Stage      string                `json:"stage,omitempty"`
+	Attempts   []Attempt             `json:"attempts,omitempty"`
+	Result     *execution.StepResult `json:"result,omitempty"`
+	Resources  *telemetry.Summary    `json:"resources,omitempty"`
+	ID         string                `json:"id"`
+	Key        execution.StepID      `json:"key"`
+	Title      string                `json:"title,omitempty"`
+	Visit      uint                  `json:"visit"`
+	Try        uint                  `json:"try"`
+	State      string                `json:"state"`
+	Outcome    execution.Outcome     `json:"outcome,omitempty"`
+	Error      string                `json:"error,omitempty"`
+	Sessions   []string              `json:"sessions,omitempty"`
+	StartedAt  time.Time             `json:"started_at"`
+	FinishedAt *time.Time            `json:"finished_at,omitempty"`
 }
 
 type Request struct {
@@ -65,6 +70,10 @@ type Event struct {
 }
 
 type Execution struct {
+	Stages        []StageVisit             `json:"stages,omitempty"`
+	FinishedAt    *time.Time               `json:"finished_at,omitempty"`
+	Hooks         []execution.HookRun      `json:"hooks,omitempty"`
+	Resources     *telemetry.Summary       `json:"resources,omitempty"`
 	ID            string                   `json:"id"`
 	ContextID     string                   `json:"context_id"`
 	Workflow      string                   `json:"workflow"`
@@ -294,6 +303,11 @@ func (s *Store) Find(id string) (string, Execution, error) {
 		var record Execution
 		if err := json.Unmarshal(row, &record); err != nil {
 			return "", Execution{}, err
+		}
+		for _, hook := range record.Hooks {
+			if hook.ID == id {
+				return "hook", record, nil
+			}
 		}
 		for _, step := range record.Steps {
 			if step.ID == id {

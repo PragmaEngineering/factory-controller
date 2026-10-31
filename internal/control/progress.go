@@ -26,6 +26,9 @@ type ProgressObserver struct {
 }
 
 func (o ProgressObserver) Record(_ context.Context, progress execution.Progress) error {
+	if progress.Hook != nil {
+		return o.Store.HookProgress(progress)
+	}
 	stepID := ""
 	if progress.Step.ID != "" {
 		stepID = StepID(progress.ExecutionID, progress.Step.ID, progress.Visit)
@@ -48,6 +51,7 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 			}
 			record.State = execution.ExecutionCompleted
 			record.CurrentStepID = ""
+			finishLifecycle(record, "completed", time.Now().UTC())
 			return true, nil
 		}
 		if progress.Kind == "execution_failed" {
@@ -67,7 +71,11 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 				}
 			}
 			record.Error = progress.Error
+			finishLifecycle(record, "failed", time.Now().UTC())
 			return true, nil
+		}
+		if progress.Kind == "stage_started" || progress.Kind == "stage_completed" {
+			return recordStage(record, progress, time.Now().UTC())
 		}
 		if progress.Step.ID == "" {
 			return false, fmt.Errorf("%s needs a step", progress.Kind)
@@ -84,7 +92,7 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 				return false, nil
 			}
 			record.Steps = append(record.Steps, Step{ID: stepID, Key: progress.Step.ID,
-				Title: progress.Step.Title, Visit: progress.Visit, State: "running", StartedAt: time.Now().UTC()})
+				Stage: progress.Step.Stage, Title: progress.Step.Title, Visit: progress.Visit, State: "running", StartedAt: time.Now().UTC()})
 			record.State = execution.ExecutionRunning
 			record.CurrentStepID = stepID
 			return true, nil
@@ -93,6 +101,9 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 			return false, fmt.Errorf("step %s was not recorded before %s", stepID, progress.Kind)
 		}
 		step := &record.Steps[index]
+		if changed, handled, err := recordAttempt(step, progress, time.Now().UTC()); handled {
+			return changed, err
+		}
 		switch progress.Kind {
 		case "stage_round_interrupted":
 			record.State = execution.ExecutionBlocked
@@ -115,34 +126,6 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 					return false, nil
 				}
 			}
-			return true, nil
-		case "attempt_started":
-			if step.State == "completed" && step.Try >= progress.Try {
-				return false, nil
-			}
-			if step.Try >= progress.Try && step.State == "running" {
-				return false, nil
-			}
-			step.Try = progress.Try
-			step.State = "running"
-			step.Error = ""
-			return true, nil
-		case "attempt_completed":
-			if step.Try == progress.Try && step.Outcome == progress.Result.Outcome {
-				return false, nil
-			}
-			step.Try = progress.Try
-			step.Outcome = progress.Result.Outcome
-			return true, nil
-		case "attempt_failed":
-			if step.State == "completed" && step.Try >= progress.Try {
-				return false, nil
-			}
-			if step.Try == progress.Try && step.Error == progress.Error {
-				return false, nil
-			}
-			step.Try = progress.Try
-			step.Error = progress.Error
 			return true, nil
 		case "step_blocked":
 			if step.State == "completed" && step.Try >= progress.Try {
@@ -173,10 +156,14 @@ func (o ProgressObserver) Record(_ context.Context, progress execution.Progress)
 			step.State = "waiting_input"
 			return true, nil
 		case "step_completed":
+			if progress.Result == nil {
+				return false, fmt.Errorf("completed step needs result")
+			}
 			if step.State == "completed" {
 				return false, nil
 			}
 			step.State = "completed"
+			step.Result = progress.Result
 			step.Outcome = progress.Result.Outcome
 			step.Try = progress.Try
 			now := time.Now().UTC()

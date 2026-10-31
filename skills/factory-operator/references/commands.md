@@ -39,7 +39,7 @@ Execution thread messages and session operator messages are different views. Use
 |---|---|
 | `ready`, `running` | Inspect active steps and sessions; no completion claim yet. |
 | `waiting_input` | Inspect pending requests and seek or apply an authorized answer. |
-| `blocked` | Inspect the cause and blocked step before deciding whether to retry. |
+| `blocked` | Inspect the cause and blocked step or hook before deciding whether to retry. |
 | `completed` | Configured workflow completed; assess product claims from their evidence. |
 | `failed`, `cancelled` | Terminal state; report the cause and retained evidence. |
 
@@ -67,4 +67,14 @@ factory retry STEP_ID --reason "Diagnosed cause and why repeating is now appropr
 factory cancel EXECUTION_ID
 ```
 
-Retry accepts only a blocked runtime step. It is distinct from a configured loop round or a new execution. Inspect the response and follow the existing execution; if retry is rejected, report that rather than inventing a resume command. A cancellation stops that execution's work; quitting a monitor or detaching does not.
+Retry accepts a blocked runtime step or lifecycle hook. For a hook, inspect `factory HOOK_ID -o json` and `factory HOOK_ID logs`, then use `factory retry HOOK_ID --reason "Diagnosed cause"`. This repeats only the hook; successful earlier hooks and agents remain complete. Hooks have noninteractive sessions and do not accept messages. It is distinct from a configured loop round or a new execution. Inspect the response and follow the existing execution; if retry is rejected, report that rather than inventing a resume command. A cancellation stops that execution's work; quitting a monitor or detaching does not.
+
+## Execution reviews
+
+```sh
+factory report EXECUTION_ID -o json
+factory report --factory FACTORY_NAME --from 2026-10-01 --to 2026-10-31 -o json
+factory report --snapshot REPORT_ID -o json
+```
+
+Reports are saved database snapshots. Default history is the last 90 days, independent of the selected context. Preserve the returned report ID for exact retrieval. Separate reported counters from agent judgments and human decisions; unavailable quality measurements must not be invented. Generating a report does not rerun product tests or invoke a judge. See [report semantics](../../../docs/reports.md) for template and MCP access.

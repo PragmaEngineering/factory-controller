@@ -14,7 +14,16 @@ import (
 )
 
 func (e *Engine) run(ctx hatchet.DurableContext, input Input) (Output, error) {
-	output, err := e.runGraph(ctx, input)
+	output := Output{ExecutionID: input.ExecutionID}
+	err := e.runHooks(ctx, input, input.Configuration.Hooks.Before, hookContext(input, "execution", "before"))
+	if err == nil {
+		output, err = e.runGraph(ctx, input)
+	}
+	if err == nil {
+		scope := hookContext(input, "execution", "after")
+		scope.Participants = participants(input, output.History)
+		err = e.runHooks(ctx, input, input.Configuration.Hooks.After, scope)
+	}
 	kind := "execution_completed"
 	message := ""
 	if err != nil {
@@ -44,7 +53,11 @@ func (e *Engine) runGraph(ctx hatchet.DurableContext, input Input) (Output, erro
 	stageRouter := execution.NewStageRouter(input.Configuration.Workflow)
 	current := input.Configuration.Workflow.Start
 	escalation := ""
+	lifecycle := stageHooks{}
 	for {
+		if err := lifecycle.enter(e, ctx, input, steps[current], output.History); err != nil {
+			return output, err
+		}
 		var concurrent *execution.Stage
 		for _, candidate := range input.Configuration.Workflow.Stages {
 			if candidate.Concurrent() && candidate.Steps[0] == current {
@@ -69,6 +82,9 @@ func (e *Engine) runGraph(ctx hatchet.DurableContext, input Input) (Output, erro
 				if err = e.record(ctx, Progress{Kind: "stage_limit_reached", ExecutionID: input.ExecutionID, Step: last, Visit: visits[last.ID], Message: escalation}); err != nil {
 					return output, err
 				}
+			}
+			if err := lifecycle.leave(e, ctx, input, next, steps, output.History); err != nil {
+				return output, err
 			}
 			switch next {
 			case execution.Complete:
@@ -103,6 +119,9 @@ func (e *Engine) runGraph(ctx hatchet.DurableContext, input Input) (Output, erro
 				return output, fmt.Errorf("step %s visit %d: %w", step.ID, visit, err)
 			}
 		case execution.DecisionStep:
+			if err := e.stepHooks(ctx, input, step, visit, 1, "before", nil); err != nil {
+				return output, err
+			}
 			var err error
 			if err := e.record(ctx, Progress{Kind: "decision_requested", ExecutionID: input.ExecutionID, Step: step, Visit: visit, Message: escalation}); err != nil {
 				return output, err
@@ -119,6 +138,12 @@ func (e *Engine) runGraph(ctx hatchet.DurableContext, input Input) (Output, erro
 		next, ok := step.Routes[result.Outcome]
 		if !ok {
 			return output, fmt.Errorf("step %s returned outcome %q without a route", step.ID, result.Outcome)
+		}
+		if step.Kind == execution.DecisionStep && next != execution.Fail {
+			completed := CompletedStep{Step: step.ID, Visit: visit, Try: attempt, Result: result}
+			if err := e.stepHooks(ctx, input, step, visit, attempt, "after", []CompletedStep{completed}); err != nil {
+				return output, err
+			}
 		}
 		configuredTarget := next
 		output.History = append(output.History, CompletedStep{
@@ -137,6 +162,9 @@ func (e *Engine) runGraph(ctx hatchet.DurableContext, input Input) (Output, erro
 				Step: step, Visit: visit, Message: fmt.Sprintf("%s Route to %s replaced %s.", escalation, next, configuredTarget)}); err != nil {
 				return output, err
 			}
+		}
+		if err := lifecycle.leave(e, ctx, input, next, steps, output.History); err != nil {
+			return output, err
 		}
 		switch next {
 		case execution.Complete:
@@ -165,6 +193,9 @@ func (e *Engine) runPackage(
 		if err := e.record(ctx, Progress{Kind: "attempt_started", ExecutionID: input.ExecutionID, Step: step, Visit: visit, Try: attempt}); err != nil {
 			return execution.StepResult{}, attempt, err
 		}
+		if err := e.stepHooks(ctx, input, step, visit, attempt, "before", nil); err != nil {
+			return execution.StepResult{}, attempt, err
+		}
 		work := Work{
 			ExecutionID: input.ExecutionID,
 			Project:     input.Project,
@@ -187,6 +218,12 @@ func (e *Engine) runPackage(
 				if err := e.record(ctx, Progress{Kind: "attempt_completed", ExecutionID: input.ExecutionID, Step: step, Visit: visit, Try: attempt, Result: &result}); err != nil {
 					return execution.StepResult{}, attempt, err
 				}
+				if step.Routes[result.Outcome] != execution.Fail {
+					completed := CompletedStep{Step: step.ID, Visit: visit, Try: attempt, Result: result}
+					if err := e.stepHooks(ctx, input, step, visit, attempt, "after", []CompletedStep{completed}); err != nil {
+						return result, attempt, err
+					}
+				}
 				if attempt < maxAttempts && containsOutcome(step.Retry.Outcomes, result.Outcome) {
 					if err := retryDelay(ctx, step.Retry.DelaySeconds); err != nil {
 						return result, attempt, err
@@ -205,7 +242,10 @@ func (e *Engine) runPackage(
 		if errors.Is(attemptErr, context.Canceled) {
 			return execution.StepResult{}, attempt, attemptErr
 		}
-		if attempt < maxAttempts && containsFailure(step.Retry.Failures, failureKind(attemptErr)) {
+		if budgetPolicy(attemptErr) == "stop" {
+			return execution.StepResult{}, attempt, attemptErr
+		}
+		if budgetPolicy(attemptErr) == "" && attempt < maxAttempts && containsFailure(step.Retry.Failures, failureKind(attemptErr)) {
 			if err := retryDelay(ctx, step.Retry.DelaySeconds); err != nil {
 				return execution.StepResult{}, attempt, err
 			}
@@ -240,6 +280,9 @@ func waitForRetry(ctx hatchet.DurableContext, executionID string, step execution
 }
 
 func validateResult(step execution.Step, result execution.StepResult) error {
+	if err := budgetResult(step, result); err != nil {
+		return err
+	}
 	if result.Outcome == "" || result.Summary == "" || result.Actor == "" || result.At.IsZero() {
 		return errors.New("package result requires outcome, summary, actor, and timestamp")
 	}

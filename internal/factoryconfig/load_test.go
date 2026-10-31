@@ -174,3 +174,33 @@ func TestConcurrentLoopConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadPinsNestedStepBudgets(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "start.sh"), []byte("#!/bin/sh\n"), 0700))
+	text := `{"name":"budget","agents":[{"name":"builder","path":".","entrypoint":"start.sh"}],"workflow":{"start":"build","stages":[{"name":"work","loop":{"limit":1,"steps":[{"name":"build","type":"agent","agent":"builder","budget":{"tokens":100,"warn_percent":80,"action":"pause"},"on":{"done":"$done"}}]}}],"steps":[]}}`
+	path := filepath.Join(root, "factory.json")
+	require.NoError(t, os.WriteFile(path, []byte(text), 0600))
+	resolved, err := Load(path)
+	require.NoError(t, err)
+	require.EqualValues(t, 100, resolved.Configuration.Workflow.Steps[0].Budget.Tokens)
+	require.Equal(t, "pause", resolved.Configuration.Workflow.Steps[0].Budget.Action)
+	text = strings.Replace(text, `"warn_percent":80`, `"warn_percent":101`, 1)
+	require.NoError(t, os.WriteFile(path, []byte(text), 0600))
+	_, err = Load(path)
+	require.ErrorContains(t, err, "warn_percent")
+}
+
+func TestLoadHooksAtExecutionStageAndStep(t *testing.T) {
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
+	hook := `{"name":"utility","command":"sh","arguments":["utility.sh","argument with spaces"]}`
+	text := `{"name":"hooks","hooks":{"before":[` + hook + `]},"agents":[{"name":"builder","path":".","entrypoint":"start.sh"}],"workflow":{"start":"build","stages":[{"name":"work","hooks":{"after":[` + hook + `]},"loop":{"limit":1,"steps":[{"name":"build","type":"agent","agent":"builder","hooks":{"before":[` + hook + `]},"on":{"done":"$done"}}]}}],"steps":[]}}`
+	path := filepath.Join(project, "factory.json")
+	require.NoError(t, os.WriteFile(path, []byte(text), 0600))
+	resolved, err := Load(path)
+	require.NoError(t, err)
+	require.Equal(t, "utility", resolved.Configuration.Hooks.Before[0].Name)
+	require.Equal(t, "argument with spaces", resolved.Configuration.Workflow.Stages[0].Hooks.After[0].Arguments[1])
+	require.Equal(t, "sh", resolved.Configuration.Workflow.Steps[0].Hooks.Before[0].Command)
+}

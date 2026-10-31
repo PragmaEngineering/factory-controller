@@ -219,7 +219,7 @@ Sequence order is server-assigned within the thread. Concurrent appends must pre
 | `progress` | Factual summary and optional evidence | Append an attributed progress event; do not advance the workflow |
 | `input_request` | Question, context, optional choices and review targets | Create a pending interaction if permitted by assignment policy |
 | `input_response` | Referenced request message ID and an answer | Resolve the request only when sender authority and answer schema are valid |
-| `step_result` | Configured outcome, summary, current `publication_id` when applicable, optional artifact/evidence references | Accept a result only for the sender's active attempt and validate its output requirements |
+| `step_result` | Configured outcome, summary, current `publication_id` when applicable, optional artifact/evidence references and named JSON `data` outputs | Accept a result only for the sender's active attempt and validate its output requirements |
 
 Payloads requesting control-plane effects must address the controller participant, directly or through an authorized broadcast that includes it. Sending a result or approval-shaped payload only to another worker does not invoke controller policy.
 
@@ -365,3 +365,7 @@ Exclude federation, remote agent discovery, a full A2A server, external-system c
 - Existing human workflow decision delivery is not atomic with the workflow engine. Durable engine/projection reconciliation beyond the tested result replay path remains future work.
 
 The API version is bumped so a new CLI rejects an older running service before executing work. Rebuild/restart the service when adopting this change; do not mix the old result-file service with the updated agent adapters.
+
+## Named outputs from runnable packages
+
+The implemented `step_result` accepts optional `data: {"NAME": JSON_VALUE}`. This is persisted with the accepted result; downstream `input_bindings` select its named values. For example, a classification package publishes its original provider request and response under `request` and `response`. It uses the same scoped MCP submission and accepted receipt as an agent. The controller does not interpret its model probabilities. Existing message size and idempotency limits apply. See [package handoff](docs/packages.md).

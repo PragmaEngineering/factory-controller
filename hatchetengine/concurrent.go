@@ -36,6 +36,9 @@ func (e *Engine) runConcurrent(ctx hatchet.DurableContext, input Input, stage ex
 			if err := e.record(ctx, Progress{Kind: "attempt_started", ExecutionID: input.ExecutionID, Step: step, Visit: peer.Visit, Try: attempt}); err != nil {
 				return nil, "", err
 			}
+			if err := e.stepHooks(ctx, input, step, peer.Visit, attempt, "before", nil); err != nil {
+				return nil, "", err
+			}
 			inputs = append(inputs, hatchet.RunManyOpt{Input: Work{ExecutionID: input.ExecutionID, Project: input.Project, Brief: input.Brief, Inputs: input.Inputs, Step: step, Package: packages[step.Run.Package], Visit: peer.Visit, Try: attempt, History: history, Peers: peers}})
 		}
 		refs, err := e.packageTask.RunMany(ctx, inputs)
@@ -82,10 +85,14 @@ func (e *Engine) runConcurrent(ctx hatchet.DurableContext, input Input, stage ex
 		firstFailure := -1
 		failures := []string{}
 		terminalFailure := false
+		var stopped error
 		for i, received := range results {
 			peer := peers[i]
 			step := steps[peer.Step]
 			if received.err != nil {
+				if budgetPolicy(received.err) == "stop" {
+					stopped = received.err
+				}
 				if isDurableReplayError(received.err) {
 					return nil, "", received.err
 				}
@@ -100,12 +107,21 @@ func (e *Engine) runConcurrent(ctx hatchet.DurableContext, input Input, stage ex
 				if step.Routes[received.result.Outcome] == execution.Fail {
 					terminalFailure = true
 				}
+				if step.Routes[received.result.Outcome] != execution.Fail {
+					completed := CompletedStep{Step: step.ID, Visit: peer.Visit, Try: attempt, Result: received.result}
+					if err := e.stepHooks(ctx, input, step, peer.Visit, attempt, "after", []CompletedStep{completed}); err != nil {
+						return nil, "", err
+					}
+				}
 				byStep[step.ID] = received.result
 				completed = append(completed, CompletedStep{Step: step.ID, Visit: peer.Visit, Try: attempt, Result: received.result})
 				if err = e.record(ctx, Progress{Kind: "attempt_completed", ExecutionID: input.ExecutionID, Step: step, Visit: peer.Visit, Try: attempt, Result: &received.result}); err != nil {
 					return nil, "", err
 				}
 			}
+		}
+		if stopped != nil {
+			return completed, "", stopped
 		}
 		if terminalFailure {
 			for _, member := range completed {
