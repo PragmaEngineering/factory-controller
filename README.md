@@ -22,7 +22,6 @@ cat request.md | factory exec -f -           # stdin
 factory exec "Another task" -c /path/to/project/factory.json
 
 factory ls
-factory monitor                             # live terminal view of executions and agents
 factory report EXECUTION-ID > report.html    # execution review + last 90 days of factory history
 factory get-context
 factory set-context CONTEXT-ID               # * means all contexts
@@ -41,13 +40,7 @@ factory cancel EXECUTION-ID
 
 `factory exec` reads **only** `./factory.json` unless `-c/--config` names another file. The file's directory is the project working directory, including when `-c` is used. Each invocation creates a unique execution. When the selected context is `*`, it also creates a new short context ID; selecting a context groups later executions under it. `--context ID` overrides the selection for one `exec`, `ls`, or `inbox` command. `factory ls` shows execution, context, current step, last activity, and any required action. `factory EXECUTION-ID` shows the pinned workflow, stage labels, pending and visited steps, attempts, and errors. `factory ID -o json` and `factory ls -o json` expose the records to other tools. `stream`, `logs`, and `events` accept `-f/--follow`.
 
-`factory monitor` has three pages. **Home (`1`)** shows executions, the full-height workflow, and the operator inbox. **Messages (`2`)** shows a traffic display above an inbox index (operator, then each configured agent), the selected inbox, and an inline message prompt. Use ↑/↓ in the index to change recipient, `m` or Enter to focus the prompt, and Enter to send; Ctrl-J inserts a newline. Messages are addressed to that recipient's running session; delivery does not prove execution. Drafts are retained separately per execution/recipient and on send failure. Operator requests are answered through the inbox, rather than sent to an agent. **Logs (`3`)** presents execution activity as readable tool, result, response, and session entries. Arrows select entries; Enter opens the full content. `v` switches between readable entries and retained raw output; unknown runner records remain visible. Expanded messages and assistant text render Markdown, with `v` available to inspect original content. Traffic lanes show observed senders, recipients, counts, and relative delivery volume within the retained inbox window. A bright packet marks traffic from the last five seconds; the display does not invent activity. `n` starts an execution; `a` opens actions; `i` focuses the inbox. Enter reads a full message or answers a decision. Inside an item dialog, listed files support `o` to open and `c` to copy their locations. In the main view, `c` selects a context. Decisions require confirmation before submission.
-
-Rendered previews using fictional fixture data: [Home](docs/images/monitor-home.png), [Messages](docs/images/monitor-messages.png), and [Logs](docs/images/monitor-logs.png).
-
-The workflow groups connected step cards inside stage frames, labels return routes, and distinguishes decision steps with double borders. Decision labels use the configured authority; they do not assume an approval process. It shows elapsed time, the current step, and selected-step details. Small terminals collapse other stages and keep the selection visible. Status colors remain visible when selected: green completed, cyan running, amber awaiting input, red failed, and muted pending. Green **LIVE** means the last service refresh succeeded; it does not mean an agent is running.
-
-Tab cycles the current page's visible panes; Shift-Tab cycles backward. `z` expands a focused pane; `z` or Esc restores the layout. Arrows operate within that pane. While typing, ordinary keys are message text; Ctrl-J adds a newline; Esc leaves the prompt and Tab changes focus. `g` opens the participant index on Messages. On Logs, `l` cycles between all activity, selected agent output, and workflow events; `s` selects an agent session and opens its logs. `f` follows the current step and new output. Press `?` for help or `q` outside text input to leave executions running. The [tutorial](tutorial.md) walks through a complete run.
+The interactive UI lives in the separate [Pragma Monitor repository](../monitor/README.md). It is a Svelte/TypeScript web application for workflow graphs, execution status, messages and operator decisions. Run `pragma-monitor` after installing it; the server prints its local browser URL. Controls contains no monitor UI and retains the complete command-line lifecycle, logs and event stream.
 
 `stream` reads a durable, ordered execution activity log and prints each line as `{source}: {data}`. It includes workflow transitions, captured agent output, operator messages, and session state. Use `factory EXECUTION-ID attach` to follow the active agent while sending a line to it; a step or session ID can also select the agent. Attach is supported when the agent package accepts terminal input; the bundled Pi agents use an RPC adapter that turns those lines into live steering prompts and emits Pi's native event records. A message written to a different runner's PTY does not prove that runner read it. Existing sessions launched before the adapter cannot gain their missing internal events retroactively.
 
@@ -56,14 +49,6 @@ Input documents are copied into the execution's private runtime directory and ha
 The local command runner is an integration slice, **not a sandbox**. It rejects requested access grants that it cannot enforce, but a host process launched without grants still has the permissions of the user running Factory. Do not run untrusted packages with it. Package bytes are checked against the digest recorded at execution start; changing an agent package during an execution blocks its next invocation.
 
 Read the [factory.json format](docs/factory-json.md), [execution contract](docs/execution-contract.md), [Hatchet integration and database migrations](docs/hatchet-engine.md), and [session supervisor](docs/session-supervisor.md) for design and current limits. The [sandbox design note](docs/sandbox.md) evaluates a possible future agent runner. The [communication contract and detailed diagram](docs/communications.md) describe MCP schemas, completion, delivery, and bounded recovery; [comms.md](comms.md) retains the broader design rationale. New evals and their evidence belong under the workspace's [evals directory](../evals/README.md). Run `go test ./...` and `go vet ./...` to check the implementation.
-
-Monitor visual-review fixtures can be rendered without a service or provider:
-
-```sh
-FACTORY_MONITOR_PREVIEW=/tmp/factory-monitor-preview go test ./internal/dashboard -run TestMonitorPreview -count=1
-```
-
-The files contain ANSI output from the actual views with fictional fixture data. The monitor uses Bubble Tea for interaction, Lip Gloss for shared surfaces and status styles, Bubbles for input/scrolling/activity, and Glamour for expanded Markdown. Its data and workflow semantics remain in the control plane.
 
 [Live resource metrics and step budgets](docs/resources.md) cover per-attempt limits, usage accounting, and runtime adapter integration.
 

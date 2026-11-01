@@ -6,7 +6,7 @@ This tutorial runs a Hello World task through a Go workflow: architecture, archi
 
 Start in the `controls` checkout, with `registry` beside it. Before setup, have Go, Node.js 22+, Pi, and `rg` installed. The Go coder and reviewer also need `gofmt`, `golangci-lint`, and `gopls`; see [agent prerequisites](../registry/agents/README.md#local-tool-preflight). The destination `~/.local/bin` must already be on `PATH`.
 
-Install the CLI/monitor binary and the separate managed-runtime dependencies:
+Install the CLI binary and the separate managed-runtime dependencies:
 
 ```sh
 ./install.sh
@@ -110,72 +110,56 @@ The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTE
 
 ## 3. Run and watch the execution
 
-```sh
-factory monitor
-```
-
-The first command starts one local Factory service for your user. All projects and terminals share it; the monitor can be opened from any directory. Your working directory only supplies the default `factory.json` for a new execution. On first use the service downloads and initializes its database before opening the monitor. Startup prints progress; Ctrl-C cancels the wait. Later commands reuse the running service.
-
-Press `n` for a new execution. Enter this brief:
-
-> Create a minimal Go Hello World command. It prints Hello, world! and exits. Add a small test.
-
-Use ↑/↓ to move between **Brief**, **Input files**, **Config**, and **Start execution**. Left/right move the text cursor. Check that **Config** points to this project's `factory.json`, select **Start execution**, and press Enter. For a larger request, put it in a file and enter its path in **Input files** instead. Separate multiple paths with commas. Factory copies those files into the execution's private input area. If submission fails, the full error opens in a scrollable dialog; Enter or Esc returns to your filled-in form.
-
-The main menu includes **1 Home**, **2 Messages**, and **3 Logs**. Home shows executions, the workflow in the full-height center column, and operator requests/messages. Select an execution before changing pages; it stays selected.
-
-Messages shows recorded traffic above an inbox index. The index lists Operator, then every configured agent. Use ↑/↓ to select whose incoming messages to see. The selected agent's inbox and message prompt occupy the rest of the page. Press `m` or Enter in the index to type, then Enter to send. Ctrl-J inserts a newline. Esc leaves typing; Tab changes pane. Letters, spaces, and page-number keys are ordinary message text while the prompt is focused. The prompt retains a separate draft for each execution and agent; errors retain the draft and show the full cause. An agent needs a running session to receive messages. Operator questions/decisions are answered from their inbox with Enter.
-
-Tab cycles the visible panes; Shift-Tab cycles backward. `z` expands the focused pane; `z` or Esc restores the layout. Tab still cycles while expanded. Arrows operate within the focused pane: select executions, steps, agents, or messages, and scroll logs. In a text field, left/right moves the cursor.
-
-Workflow cards sit inside stage frames. Arrows follow configured routes, and labeled return routes show review loops. Decision steps use double borders and display their configured authority; this example uses human decisions. Green means completed, cyan running, amber awaiting input, red failed, and muted pending. The selection marker does not replace the status color. Elapsed time includes approval waits and stops when the execution ends. Smaller terminals show a compact view around the selected step.
-
-On Logs (`3`), arrows select readable entries and Enter opens their full content. Press `v` to switch to retained raw output; `v` inside an expanded message or entry shows original content. Markdown is styled in expanded views. Press `l` to cycle between all activity, selected agent output, and workflow events. `s` selects an agent session and opens its output; `[`/`]` switches sessions for the selected step. Press `f` to follow the current step and new output, or `r` to refresh. On Home, Enter inspects a workflow step's full state, attempt, and error. Green **LIVE** means the service refresh succeeded, not that an agent is busy. Traffic lanes highlight a packet only when recorded traffic occurred in the last five seconds. Press `?` for help; `q` outside the prompt leaves executions running.
-
-In the main view, press `c` to select a context. Inside an item dialog with listed files, `c` instead copies their locations. `*` shows all contexts; a named context filters the execution list and groups new executions under it. If you start this run with `*` selected, Factory creates a new context for it. The context ID is shown alongside the execution, so you can return to it later.
-
-The CLI provides the same operations when you need commands or automation. For example:
+Start the execution service and submit the request from `hello-go`:
 
 ```sh
+factory exec "Create a minimal Go program that prints Hello, world!"
 factory ls
-factory EXECUTION-ID
-factory EXECUTION-ID stream -f
 ```
 
-Replace `EXECUTION-ID` with the ID shown in the TUI. Stop following the stream with Ctrl-C; the execution continues.
+Install the separate [Pragma Monitor](../monitor/README.md) once from its checkout:
 
-## 4. Review and answer the two human decisions
+```sh
+npm ci
+npm run build
+npm link
+```
 
-When design approval appears, press `i` to focus the right-hand inbox and Enter to inspect the request. Press `o` to open its review files in your default application, or `c` to copy their absolute locations. Read `spec.html`, `plan.html`, and `reviews/architecture.md`; then choose an outcome with the arrow keys. Press Enter to move to **Reason**, enter feedback if needed, press Enter, and press `y` to confirm. Press Esc to leave a dialog without answering.
+Then, from any directory:
 
-Choose `request_changes` with a specific reason if the design needs work; Factory routes back to the architect. `reject` blocks the execution. The TUI requires confirmation before it sends the answer.
+```sh
+pragma-monitor
+```
 
-After implementation and code review, inspect the code plus `reviews/build.md` and `reviews/code.md`. Press `i` again for the acceptance request and answer `approve`, `request_changes`, or `reject`. The coder and reviewer can also loop before this decision when the reviewer requests changes. Human `request_changes` sends the work back for another bounded set of rounds.
+Open the printed URL. Select the execution in the sidebar. **Workflow** shows the pinned stages, routes, step status and elapsed time. Select a step for visits, attempts and errors. **Messages** lets you inspect conversations and send feedback to a selected running agent session. **Decisions** presents the configured operator requests and evidence documents; choose an allowed outcome and confirm the response.
 
-## 5. Intervene or recover when needed
+The connection indicator reports service refresh health, not agent activity. Closing the monitor leaves executions running. Logs are available through the CLI:
 
-To see what an agent is doing, press `3` for Logs, then `s` to select its session. To send feedback, press `2` for Messages, select the agent with ↑/↓ in the index, and press `m` to type. Enter queues the message to that agent's session; delivery alone does not prove it read or followed the message. `i` focuses the inbox; Enter reads a full message. To send the contents of a file, use **Actions → Message agent** or the CLI.
+```sh
+factory EXECUTION-ID stream -f
+factory SESSION-ID logs -f
+```
 
-Press `a` for actions available on the selected execution. You can inspect a step, answer a pending decision, message or stop a running agent, or cancel the execution. Stopping an agent may block its step. Cancellation stops the execution's active work. Both actions ask for confirmation.
+## 4. Complete both decisions
 
-If an execution is `blocked`, inspect the selected step's error and output first. Fix the cause, then press `a` and choose **Retry blocked step**. Enter what changed and confirm. Retry continues from that blocked step; it does not create a new execution. A reviewer finding is handled through the configured agent loop or human decision, rather than by manually retrying a healthy step.
+At design review, inspect `spec.html` and `plan.html` in **Decisions**, then approve or request changes. After implementation and code review, inspect the verification evidence before final acceptance. The example routes requested changes back to the responsible agent; review-loop limits remain enforced by Controls.
 
-## 6. Check the result
+The same lifecycle is available entirely through commands:
 
-After final approval, the execution should show `completed`. Select it and inspect the workflow and activity stream for the actual step sequence and outcomes. You can leave the TUI with `q` at any point and reopen it with `factory monitor`.
+```sh
+factory inbox
+factory REQUEST-ID
+factory answer REQUEST-ID approve --reason "Reviewed the evidence"
+factory SESSION-ID send "Please investigate the failing case"
+factory retry STEP-ID --reason "Underlying issue resolved"
+factory cancel EXECUTION-ID
+```
 
-Use this new project as a disposable first run.
+Use the exact options shown on each request. After final approval, inspect the execution for `completed` and generate its report:
 
-### Runtime communication
+```sh
+factory EXECUTION-ID
+factory report EXECUTION-ID > report.html
+```
 
-The setup commands in step 1 install the managed runtime dependencies.
-
-Factory provisions the MCP connection and communication skill automatically. Agent questions appear in `factory inbox` and the monitor. Reply with `factory answer REQUEST-ID "your response"`; choice requests require one of their listed options. Inspect the recent conversation with `factory EXECUTION-ID messages -o json`, or follow the complete execution stream.
-
-This tutorial uses sequential loops. To configure concurrent peers, use [the loop-mode reference](docs/factory-json.md#loop-execution-mode) and adapt both routes and assignments. Merely changing the mode while retaining build→review internal routing is rejected.
-
-## Optional lifecycle utilities
-
-To prepare a Git branch and commit stage output deterministically, use the optional hooks in [factory.example.json](factory.example.json). Update their script paths for your Registry installation and choose explicit commit paths. Hooks are not required to run the tutorial. See the [hook contract](docs/hooks.md) for host prerequisites and retry behavior.
-
-For a custom execution directory or explicit path arguments, see [execution files and frozen variables](docs/execution-files.md). No files-directory environment variable is needed.
+Factory provisions the scoped MCP connection and communication skill. Agents signal completion through accepted result messages; process exit or model prose alone does not advance a step. See the [communication contract](docs/communications.md).

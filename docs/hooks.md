@@ -70,10 +70,9 @@ factory HOOK-ID logs
 factory HOOK-ID events
 factory EXECUTION-ID stream --follow
 factory retry HOOK-ID --reason "Corrected host Git signing configuration"
-factory monitor
 ```
 
-Hook records include pending/running/succeeded/blocked states, attempt count, session identity, timing, and failure information. Raw stdout and stderr are retained together in supervised output and the execution stream; they do not require a structured output format. The monitor displays hook progress and offers inspection/retry for a blocked hook under Actions. Hook sessions are noninteractive; use logs rather than sending messages to them. They are excluded from model-usage totals.
+Hook records include pending/running/succeeded/blocked states, attempt count, session identity, timing, and failure information. Raw stdout and stderr are retained together in supervised output and the execution stream; they do not require a structured output format. The [web monitor](../../monitor/README.md) displays hook progress and offers retry for a failed or blocked hook. Inspect raw hook output using the CLI. Hook sessions are noninteractive; use logs rather than sending messages to them. They are excluded from model-usage totals.
 
 Successful hook task results are reused during scheduler replay, and the host also checks the durable receipt before launching. A hook still running on another delivery is not started twice. A supervisor restart marks its lost sessions interrupted; ambiguous launches block for inspection. Cancellation stops hook processes and prevents later boundaries from running.
 

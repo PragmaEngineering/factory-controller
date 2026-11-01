@@ -10,10 +10,9 @@ factory <step-id>
 factory <session-id>
 factory <session-id> -o json
 factory <execution-id> stream --follow
-factory monitor
 ```
 
-Execution and step inspection aggregate every supervised attempt, including failed attempts. Session inspection provides exact token categories, elapsed time, time since progress, active tool commands, tool failures, budget notices, and reported cost. The monitor puts these values inside workflow cards and above the selected agent's logs. Full commands remain in the retained output; cards truncate long commands. Concurrent tool calls remain individually available in JSON `resources.active_tools`.
+Execution and step inspection aggregate every supervised attempt, including failed attempts. Session inspection provides exact token categories, elapsed time, time since progress, active tool commands, tool failures, budget notices, and reported cost. The [web monitor](../../monitor/README.md) shows reported execution usage and selected-step failure counts. Raw logs and active tool details remain available through the CLI and JSON API. Concurrent tool calls remain individually available in JSON `resources.active_tools`.
 
 Tokens are uncached input, cache-read input, cache-write input, and output. Their sum includes cached tokens. Token usage is a reported lower bound, updated on completed assistant responses, not a continuously metered provider balance. Missing usage remains unknown; execution totals identify sessions that have not reported usage. Old sessions are not backfilled from native logs.
 

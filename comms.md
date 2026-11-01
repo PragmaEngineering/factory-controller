@@ -42,7 +42,7 @@ A2A message roles describe client/server direction; they are not identities for 
 flowchart LR
     A[Agent / MCP client] --> M[MCP transport adapter]
     M --> C[Thread and message service]
-    U[CLI / TUI / API] --> C
+    U[CLI / Web monitor / API] --> C
     C --> D[(Database)]
     C --> V[Control-plane payload validation]
     V --> D
@@ -139,7 +139,7 @@ Publication covers only the named files; include all source, module files, fixtu
 
 ### Visibility and recovery
 
-The CLI/TUI and event stream must expose all stage members, each worker's runtime state, current work revision, last activity, and whether it is waiting on another participant or human input. Output and messages remain attributed to the individual worker/attempt. Do not collapse a concurrent loop into one selected "running agent."
+The CLI/web monitor and event stream must expose all stage members, each worker's runtime state, current work revision, last activity, and whether it is waiting on another participant or human input. Output and messages remain attributed to the individual worker/attempt. Do not collapse a concurrent loop into one selected "running agent."
 
 One worker's failure must not silently strand the others. Record which members remain active, apply the configured stop/wait/retry policy, and notify affected participants. Replacing a worker changes its runtime identity and fences its previous credential; the replacement receives explicitly shared relevant history and current work references. Recovery must not replay acknowledged messages as new effects or launch duplicate peers.
 
@@ -297,7 +297,7 @@ Do not assume every MCP client supports unsolicited notifications or automatical
 
 The decision/input inbox is a projection of accepted `input_request` messages and unresolved configured workflow decisions. It is not every unread chat message. Present the request's thread, owner, type, question, artifacts, authority, age, and state.
 
-Authorized humans respond through the CLI/TUI/API using the same application service. Preserve actor identity, message correlation, and effect receipt. An `input_response` to an agent question makes the response available to the owning attempt. A response to a configured workflow decision follows its configured route. Do not send every inbox response to `Engine.SendDecision`.
+Authorized humans respond through the CLI/web monitor/API using the same application service. Preserve actor identity, message correlation, and effect receipt. An `input_response` to an agent question makes the response available to the owning attempt. A response to a configured workflow decision follows its configured route. Do not send every inbox response to `Engine.SendDecision`.
 
 Formal requests are pending, answered, or cancelled in the current implementation. Per-request expiry is not yet configurable; the supervised invocation retains its two-hour execution timeout. Reads do not consume answers. Reject step completion with pending requests owned by that attempt. Cancellation, replacement, or reconciled worker failure must close those requests explicitly. Waiting does not disable the invocation timeout.
 
@@ -333,7 +333,7 @@ The runtime configures the runner's native MCP client and provisions credentials
 
 ## Initial scope and acceptance
 
-The integration includes the eight thread tools, A2A content-type reuse, scoped access, durable messages/receipts, formal input and result handling, sequential/concurrent loop modes, Pi delivery, shared skill, and CLI/TUI inbox integration. The deterministic engine integration test demonstrates two simultaneously active agents exchanging work and review feedback; a sequential launch after completion does not meet this requirement. The result-file writer and completion polling are removed.
+The integration includes the eight thread tools, A2A content-type reuse, scoped access, durable messages/receipts, formal input and result handling, sequential/concurrent loop modes, Pi delivery, shared skill, and CLI/web monitor inbox integration. The deterministic engine integration test demonstrates two simultaneously active agents exchanging work and review feedback; a sequential launch after completion does not meet this requirement. The result-file writer and completion polling are removed.
 
 Exclude federation, remote agent discovery, a full A2A server, external-system connectors, a broker, and a plugin ecosystem. Keep existing output streaming and worker supervision.
 

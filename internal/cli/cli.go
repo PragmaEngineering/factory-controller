@@ -15,7 +15,6 @@ import (
 
 	"controls/execution"
 	"controls/internal/control"
-	"controls/internal/dashboard"
 	"controls/internal/sessions"
 	"controls/internal/telemetry"
 )
@@ -34,7 +33,6 @@ func Help(w io.Writer) {
   factory ls [--context ID] [-o json]
   factory get-context | set-context ID | contexts
   factory inbox [--context ID]
-  factory monitor
   factory report [EXECUTION-ID] [--factory NAME] [--from DATE] [--to DATE] [-o html|json|template]
   factory report --snapshot ID [-o html|json]
   factory mcp
@@ -90,11 +88,6 @@ func Run(ctx context.Context, args []string, client *control.Client, sessionClie
 		return writer.Flush()
 	case "inbox":
 		return inboxCommand(ctx, args[1:], client, stdout)
-	case "monitor":
-		if len(args) != 1 {
-			return errors.New("usage: factory monitor")
-		}
-		return dashboard.Run(ctx, client, sessionClient)
 	case "retry":
 		return retryCommand(ctx, args[1:], client, stdout)
 	case "answer":
