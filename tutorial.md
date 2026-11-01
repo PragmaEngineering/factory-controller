@@ -131,7 +131,7 @@ Then, from any directory:
 pragma-monitor
 ```
 
-Open the printed URL. Select the execution in the sidebar. **Workflow** shows the pinned stages, routes, step status and elapsed time. Select a step for visits, attempts and errors. **Messages** lets you inspect conversations and send feedback to a selected running agent session. **Decisions** presents the configured operator requests and evidence documents; choose an allowed outcome and confirm the response.
+Open the printed URL. Select the execution from the searchable dropdown in the top bar. **Home** shows the pinned stages, routes, step status and elapsed time. Select a step for visits, attempts and errors. **Inbox → Messages** lets you inspect conversations and send feedback to a selected running agent session. **Inbox → Requests** presents the configured operator requests and evidence documents; choose an allowed outcome and confirm the response.
 
 The connection indicator reports service refresh health, not agent activity. Closing the monitor leaves executions running. Logs are available through the CLI:
 
@@ -142,7 +142,7 @@ factory SESSION-ID logs -f
 
 ## 4. Complete both decisions
 
-At design review, inspect `spec.html` and `plan.html` in **Decisions**, then approve or request changes. After implementation and code review, inspect the verification evidence before final acceptance. The example routes requested changes back to the responsible agent; review-loop limits remain enforced by Controls.
+At design review, inspect `spec.html` and `plan.html` in **Inbox → Requests**, then approve or request changes. After implementation and code review, inspect the verification evidence before final acceptance. The example routes requested changes back to the responsible agent; review-loop limits remain enforced by Controls.
 
 The same lifecycle is available entirely through commands:
 
