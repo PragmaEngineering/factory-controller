@@ -4,7 +4,7 @@ build:
 	go build -o bin/factory ./cmd/factory
 
 install:
-	go install ./cmd/factory
+	./install.sh
 
 run: 
 	go run ./...
