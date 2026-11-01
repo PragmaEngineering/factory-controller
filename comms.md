@@ -1,3 +1,7 @@
+# Implementation reference
+
+See [Communication and completion](docs/communications.md) for the implemented schemas, explicit completion example, persisted recovery policy, runner requirements, and [detailed interaction diagram](docs/images/communications.svg). The design discussion below includes future considerations; the implementation reference describes current behavior.
+
 # Agent communication with the control plane
 
 **Status: implemented local integration.** The thread MCP service, communication skill, Pi delivery adapter, sequential/concurrent loop modes, publication, and inbox projection are implemented. This document explains their contract and remaining limits. The original result-file completion path is removed.
@@ -129,7 +133,7 @@ Concurrent review must identify the exact version being reviewed. Messages refer
 
 For an implementer/reviewer pair, the initial safe default is one implementation writer and a reviewer inspecting a stable published copy. For design work, similarly identify who owns each document. Other ownership arrangements require explicit configuration. Prompt instructions alone are not write isolation, and the current host runner does not enforce reviewer read-only access.
 
-Use the `publication` payload to publish an explicit list of project files. The host runner captures their exact bytes, stores them in the database, and materializes read-only review copies under the execution runtime. The thread receives a verified manifest with A2A file references and a publication ID. Results must name the latest publication when one exists, and the service rejects changed source files or stale revision IDs. A round whose members accepted different publications repeats rather than declaring agreement.
+Use the `publication` payload to publish an explicit list of execution files. The host runner captures their exact bytes, stores them in the database, and materializes read-only review copies under the execution runtime. The thread receives a verified manifest with A2A file references and a publication ID. Results must name the latest publication when one exists, and the service rejects changed source files or stale revision IDs. A round whose members accepted different publications repeats rather than declaring agreement.
 
 Publication covers only the named files; include all source, module files, fixtures, and configuration needed for independent checks. Agents must review the published copies. Read-only file permissions do not enforce sandbox isolation against another process running as the same host user. The database retains the authoritative bytes; remote materialization and enforced workspace isolation remain future runner capabilities.
 
@@ -215,7 +219,7 @@ Sequence order is server-assigned within the thread. Concurrent appends must pre
 | Kind | Structured meaning | Permitted effect |
 |---|---|---|
 | `message` | Ordinary content parts | Conversation only |
-| `publication` | Explicit project-relative `files` list | Retain exact work bytes and publish a verified manifest; no workflow advance |
+| `publication` | Explicit execution-files-relative `files` list | Retain exact work bytes and publish a verified manifest; no workflow advance |
 | `progress` | Factual summary and optional evidence | Append an attributed progress event; do not advance the workflow |
 | `input_request` | Question, context, optional choices and review targets | Create a pending interaction if permitted by assignment policy |
 | `input_response` | Referenced request message ID and an answer | Resolve the request only when sender authority and answer schema are valid |

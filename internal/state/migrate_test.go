@@ -82,6 +82,6 @@ func assertCurrentVersion(t *testing.T, db *state.Store) {
 	var dirty bool
 	err := db.Pool.QueryRow(context.Background(), `SELECT version, dirty FROM public.factory_schema_migrations`).Scan(&version, &dirty)
 	require.NoError(t, err)
-	require.Equal(t, 4, version)
+	require.Equal(t, 5, version)
 	require.False(t, dirty)
 }

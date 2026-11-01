@@ -23,6 +23,7 @@ type Collector interface {
 	Collect(context.Context, execution.Work, []string) ([]execution.Artifact, error)
 }
 type Service struct {
+	Recovery      RecoveryPolicy
 	Capacity      int
 	DB            *state.Store
 	Collector     Collector

@@ -31,7 +31,7 @@ Concurrent step `before` hooks execute in configuration order before **any** mem
 
 Hooks in each list run sequentially. Names must be unique within a scope's `before` list and within its `after` list; the same name may appear in another scope or boundary. Unknown keys are rejected. There is no implicit shell, argument substitution, executable installation, or Registry lookup. Use `"command":"go","arguments":["run","./utility"]`, rather than `"command":"go run"`.
 
-The working directory is the directory containing `factory.json`, which is also the project root. Relative script arguments resolve there. Bare commands resolve through the host service's PATH. Hooks inherit the service's permitted process environment; credentials and signing configuration must already be available. Keep secrets in the host environment rather than recorded hook arguments or context. Hook configuration is recorded with the execution; referenced utility files are not copied or hashed, so retain the selected utility version for reproducible runs.
+The working directory is the directory containing `factory.json`, which is the initial project directory; scripts may select another workspace. Relative script paths resolve there. Hook command/argument references bind once using the [execution variables contract](execution-files.md). The hook stdin includes `files_dir` and the resolved variables; no new environment variables are required. Bare commands resolve through the host service's PATH. Hooks inherit the service's permitted process environment; credentials and signing configuration must already be available. Keep secrets in the host environment rather than recorded hook arguments or context. Hook configuration is recorded with the execution; referenced utility files are not copied or hashed, so retain the selected utility version for reproducible runs.
 
 ## Standard input
 
@@ -83,14 +83,12 @@ External effects and the database cannot be committed atomically. A process migh
 
 [The example configuration](../factory.example.json) demonstrates three injected hooks:
 
-1. Execution `before`: [prepare the execution branch](../../registry/skills/git-work-branch/SKILL.md).
-2. Stage `after`: [commit the combined work](../../registry/skills/git-commit/SKILL.md).
-3. Execution `after`: release the checkout reservation, retaining the branch and history.
+1. Execution `before`: [prepare one execution worktree](../../registry/skills/git-worktree/SKILL.md).
+2. Stage `after`: commit explicitly scoped project changes after the stage's configured human gate.
+3. Execution `after`: release the worktree receipt on successful completion, retaining the worktree and branch.
 
-The executable utilities belong to [Registry scripts](../../registry/scripts/README.md). The Git skills document those utilities; hooks invoke the scripts directly and do not load a skill.
+See [factory.example.json](../factory.example.json) and the [Go factory configuration](../../registry/factories/golang/factory.json). Replace package and utility paths for your installation. The worktree utility creates both the checkout and its execution branch; no separate branch utility is involved. Uncommitted source-checkout changes are not included, and that checkout is never switched or reset.
 
-Replace the example agent paths and script arguments with paths for your installation. The example's `../registry/...` paths assume sibling Controls and Registry checkouts and are resolved from the project directory, not this documentation. Copying the example to another project requires updating them. Use absolute script paths when Registry remains outside the project.
+The declared workspace variable is passed explicitly to launchers and commit scripts. Controls does not interpret it as a worktree or change its process working directory. Python 3.9+ and Git are prerequisites for these optional Unix utilities; Controls does not require Git. Execution documents belong to [execution storage](execution-files.md), outside project commits. The Go design-stage hook records a no-change receipt when there are no project changes.
 
-Python 3.9+ and Git are needed for these optional Unix utilities; Controls itself has no Python/Git dependency. Configure Git user identity and any required signing tools first. Preparation refuses pre-existing changes and reserves the checkout for one execution. Commit paths are explicit; the example's `--path .` deliberately stages all nonignored project changes. Narrow them when appropriate and keep runtime/secrets excluded through ignore rules. The scripts cannot distinguish unrelated human edits in the same files.
-
-A stage commit has a deterministic Conventional Commits header and identity trailers. It records participation, not proof that each agent reviewed the final bytes. Normal Git hooks and signing apply; nothing pushes, merges, resets, or amends. No changes creates a no-op receipt. A failed/cancelled execution keeps its checkout reservation for inspection; do not release it while its processes are active.
+A stage commit has a deterministic Conventional Commits header and identity trailers. It records participation, not proof that each agent reviewed the final bytes. Normal Git hooks and signing apply; nothing pushes, merges, resets, or amends. No changes creates a no-op receipt. A failed/cancelled execution retains its worktree and receipt for inspection; do not release or remove it while its processes are active.

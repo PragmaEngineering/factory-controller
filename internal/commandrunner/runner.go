@@ -37,6 +37,7 @@ type Communication interface {
 	Provision(context.Context, execution.Work) (comms.Connection, error)
 	BindSession(context.Context, string, string) error
 	Result(context.Context, string) (*execution.StepResult, error)
+	Recover(context.Context, string) error
 	End(context.Context, string) error
 }
 
@@ -162,6 +163,7 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 	}
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
+	var recoveryChecked time.Time
 	for {
 		result, err := r.Comms.Result(ctx, connection.ParticipantID)
 		if err != nil {
@@ -187,6 +189,13 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 			return execution.StepResult{}, err
 		}
 		if current.State == sessions.Running {
+			if time.Since(recoveryChecked) >= time.Second {
+				recoveryChecked = time.Now()
+				if err := r.Comms.Recover(ctx, connection.ParticipantID); err != nil {
+					_ = r.Sessions.Stop(sessionID)
+					return execution.StepResult{}, err
+				}
+			}
 			for _, notice := range checkBudget(work.Step.Budget, current, time.Now().UTC()) {
 				if err := r.Sessions.ReportBudget(sessionID, notice.key, notice.message); err != nil {
 					_ = r.Sessions.Stop(sessionID)
@@ -230,7 +239,10 @@ func exitCode(session sessions.Session) string {
 func buildPrompt(work execution.Work, threadID string) string {
 	var prompt strings.Builder
 	fmt.Fprintf(&prompt, "You are running Factory step %s (visit %d, attempt %d).\n\n", work.Step.ID, work.Visit, work.Try)
-	fmt.Fprintf(&prompt, "Project root: %s\n", work.Project)
+	fmt.Fprintf(&prompt, "Factory configuration directory: %s\n", work.Project)
+	if work.FilesDir != "" {
+		fmt.Fprintf(&prompt, "Execution files directory: %s\nWrite workflow documents and evidence here, not in the project source. Relative publication/output names resolve here.\n", work.FilesDir)
+	}
 	fmt.Fprintf(&prompt, "Request: %s\n\n", work.Brief)
 	if len(work.Inputs) > 0 {
 		prompt.WriteString("Input documents (read these files as needed):\n")
@@ -251,7 +263,10 @@ func buildPrompt(work execution.Work, threadID string) string {
 	}
 	fmt.Fprintf(&prompt, "This step: %s\n%s\n\n", work.Step.Title, work.Step.Instructions)
 	if len(work.Step.Outputs) > 0 {
-		fmt.Fprintf(&prompt, "Required outputs: %s\n", strings.Join(work.Step.Outputs, ", "))
+		fmt.Fprintf(&prompt, "Required outputs (relative to %s): %s\n", work.ArtifactDirectory(), strings.Join(work.Step.Outputs, ", "))
+		for _, name := range work.Step.Outputs {
+			fmt.Fprintf(&prompt, "- %s: %s\n", name, filepath.Join(work.ArtifactDirectory(), name))
+		}
 		if len(work.Step.OutputsOn) > 0 {
 			outcomes := make([]string, len(work.Step.OutputsOn))
 			for i, outcome := range work.Step.OutputsOn {
@@ -267,7 +282,8 @@ func buildPrompt(work execution.Work, threadID string) string {
 	sort.Strings(outcomes)
 	fmt.Fprintf(&prompt, "Allowed outcomes: %s\n", strings.Join(outcomes, ", "))
 	fmt.Fprintf(&prompt, "Conversation thread: %s. Use Factory MCP list_participants to discover peers. Exchange work and feedback through send_message. Follow your runtime delivery instructions: with automatic delivery, end an idle turn and let the runtime wake you; otherwise use wait_for_message.\n", threadID)
-	prompt.WriteString("Finish by sending a step_result payload to the controller, using an allowed outcome and factual summary. Wait for effect.state=accepted. Factory collects applicable output files. Intermediate peer feedback is a message, not a terminal result.\n")
+	prompt.WriteString("Intermediate peer feedback is a message, not a terminal result.\n")
+	prompt.WriteString(comms.CompletionExample(threadID, outcomes))
 	return prompt.String()
 }
 

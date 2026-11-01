@@ -6,4 +6,6 @@ Requires Node.js 22+ and an installed Pi executable. Install dependencies with `
 
 The `@pragma/adapter-pi` package provides `pi-rpc-session.mjs`. Registry installs this package as a local dependency; managed agent launchers invoke that entrypoint. Standalone agent sessions continue to invoke Pi directly.
 
+The adapter reports busy/idle native transitions through MCP so the controller can issue bounded completion-recovery messages. It does not retry a model's rejected result; the model must correct the payload. See [communication and completion recovery](../../docs/communications.md).
+
 See the [adapter contract and runtime setup](../README.md) for provisioned environment variables, delivery semantics, failure handling, and other runner integrations.

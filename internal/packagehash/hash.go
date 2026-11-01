@@ -12,16 +12,16 @@ import (
 	"controls/execution"
 )
 
-func Directory(root string) (string, error) {
+func Directory(root string, excluded ...string) (string, error) {
 	digest := sha256.New()
-	if err := hashPath(digest, root, ".", 0); err != nil {
+	if err := hashPath(digest, root, ".", 0, excluded); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func Verify(pkg execution.PackageSnapshot) error {
-	actual, err := Directory(pkg.Source)
+	actual, err := Directory(pkg.Source, pkg.ExcludedPaths...)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,12 @@ func Verify(pkg execution.PackageSnapshot) error {
 	return nil
 }
 
-func hashPath(digest hash.Hash, path, relative string, depth int) error {
+func hashPath(digest hash.Hash, path, relative string, depth int, excluded []string) error {
+	for _, directory := range excluded {
+		if filepath.Clean(path) == filepath.Clean(directory) {
+			return nil
+		}
+	}
 	if depth > 32 {
 		return fmt.Errorf("agent package links are nested too deeply at %s", path)
 	}
@@ -45,7 +50,7 @@ func hashPath(digest hash.Hash, path, relative string, depth int) error {
 			return err
 		}
 		for _, entry := range entries {
-			if err := hashPath(digest, filepath.Join(path, entry.Name()), filepath.Join(relative, entry.Name()), depth+1); err != nil {
+			if err := hashPath(digest, filepath.Join(path, entry.Name()), filepath.Join(relative, entry.Name()), depth+1, excluded); err != nil {
 				return err
 			}
 		}

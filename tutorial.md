@@ -26,13 +26,14 @@ mkdir hello-go
 cd hello-go
 ```
 
-Run Factory from this project root. The directory containing `factory.json` is the agents' working directory, and their output files will appear here.
+Run Factory from this project root. Commands initially start beside `factory.json`; source work stays in the launcher-selected workspace. Workflow documents and review evidence go to `.factory/executions/<execution-id>/files/`. When using Git, add `.factory/` to `.gitignore`.
 
 Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent.
 
 ```json
 {
   "name": "golang",
+  "factory_dir": ".factory",
   "agents": [
     {"name": "architect", "path": "../registry/agents/architect", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]},
     {"name": "architecture_reviewer", "path": "../registry/agents/architecture_reviewer", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]},
@@ -176,3 +177,5 @@ This tutorial uses sequential loops. To configure concurrent peers, use [the loo
 ## Optional lifecycle utilities
 
 To prepare a Git branch and commit stage output deterministically, use the optional hooks in [factory.example.json](factory.example.json). Update their script paths for your Registry installation and choose explicit commit paths. Hooks are not required to run the tutorial. See the [hook contract](docs/hooks.md) for host prerequisites and retry behavior.
+
+For a custom execution directory or explicit path arguments, see [execution files and frozen variables](docs/execution-files.md). No files-directory environment variable is needed.

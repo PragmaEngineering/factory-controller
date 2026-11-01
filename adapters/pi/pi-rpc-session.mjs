@@ -2,6 +2,7 @@
 // Native Pi RPC supervision plus MCP delivery. Domain skills do not implement
 // workflow routing; this adapter only configures the connection and moves input.
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { telemetry } from './telemetry.mjs';
 import { createInterface } from 'node:readline';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -35,7 +36,7 @@ config.mcpServers = { ...config.mcpServers, factory: {
 } };
 writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
 if (environment.FACTORY_COMMS_SKILL) argv.push('--skill', environment.FACTORY_COMMS_SKILL);
-prompt += `\n\nFactory connection: thread ${environment.FACTORY_THREAD_ID}; your participant ID is ${environment.FACTORY_PARTICIPANT_ID}. Automatic MCP message delivery is active. Use the factory MCP tools and loaded control-plane-comms skill. Final completion requires send_message with a step_result and effect.state=accepted. When waiting for a peer, end your turn with a short waiting status. The runtime keeps your session open and wakes it on messages; do not poll or wait using tools or shell loops.\n`;
+prompt += `\n\nFactory connection: thread ${environment.FACTORY_THREAD_ID}; your participant ID is ${environment.FACTORY_PARTICIPANT_ID}. Automatic MCP message delivery is active. Use the factory MCP tools and loaded control-plane-comms skill. Final completion requires send_message with a step_result and effect.state=accepted. When waiting for a peer, end your turn with a short waiting status. The runtime keeps your session open and wakes it on messages; do not poll or wait using tools or shell loops. Automatic delivery handles incoming messages only; it does not retry rejected outgoing calls. Correct completion errors using the tool response; do not wait for delivery to resubmit a result.\n`;
 
 const client = await connect(environment, 'factory-pi-delivery');
 const child = spawn(environment.AGENT_EXECUTABLE || 'pi', [...argv, '--mode', 'rpc'], { stdio: ['pipe', 'pipe', 'inherit'], env: environment });
@@ -56,6 +57,29 @@ const failSession = reason => {
   console.error(`Factory agent blocked: ${reason}`);
   child.kill('SIGTERM');
 };
+// Lifecycle reports use the same MCP connection and worker scope as messages.
+// Serial delivery preserves busy -> idle ordering; retries reuse one operation.
+let statusQueue = Promise.resolve();
+let statusSequence = 0;
+const statusPrefix = randomUUID();
+function reportStatus(state) {
+  const args = { operation_id: `runtime-${statusPrefix}-${++statusSequence}`, thread_id: environment.FACTORY_THREAD_ID,
+    payload: { kind: 'runtime_status', version: 1, parts: [{ kind: 'data', data: { state } }] } };
+  statusQueue = statusQueue.then(async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (stopping || completed) return;
+      try { await tool('send_message', args); return; }
+      catch (error) {
+        // Acceptance may race the final idle report. The persisted result is
+        // authoritative; let the delivery loop observe its terminal message.
+        if (error.controlCode === 'already_completed') return;
+        if (error.controlCode && error.controlCode !== 'temporarily_unavailable') throw error;
+        if (attempt === 2) throw error;
+        await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+      }
+    }
+  }).catch(error => failSession(`runtime status delivery failed: ${error.message}`));
+}
 let telemetrySequence = 0;
 let buffer = Buffer.alloc(0);
 let nextID = 0;
@@ -64,6 +88,7 @@ const send = (message, steer = busy) => new Promise((resolve, reject) => {
   if (child.stdin.destroyed) { reject(new Error('Pi input is closed')); return; }
   const id = `factory-${++nextID}`;
   pending.set(id, { resolve, reject });
+  reportStatus('busy');
   child.stdin.write(JSON.stringify({ id, type: 'prompt', message, ...(steer ? { streamingBehavior: 'steer' } : {}) }) + '\n');
   if (!busy) lastAssistantStop = undefined;
   busy = true;
@@ -90,6 +115,7 @@ child.stdout.on('data', chunk => {
       }
       if (record.type === 'agent_settled') {
         busy = false;
+        reportStatus('idle');
         if (!completed && !stopping && lastAssistantStop?.reason === 'length') {
           if (continuations >= continuationLimit) {
             failSession(`model response truncated (stopReason=length); continuation limit ${continuationLimit} exhausted`);
@@ -126,7 +152,11 @@ await send(prompt, false);
 // cursor; a timed-out read does not consume a message or alter workflow state.
 async function tool(name, args) {
   const result = await client.callTool({ name, arguments: args });
-  if (result.isError) throw new Error('Factory communication call was rejected');
+  if (result.isError) {
+    const error = new Error('Factory communication call was rejected');
+    error.controlCode = result.structuredContent?.error?.code;
+    throw error;
+  }
   return result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
 }
 let cursor = '';

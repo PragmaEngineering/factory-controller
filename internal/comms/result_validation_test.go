@@ -81,6 +81,13 @@ func TestMalformedControlDataReturnsValidationErrorAndCanBeCorrected(t *testing.
 			require.Nil(t, accepted, "invalid requests must not complete the worker")
 		})
 	}
+	// A rejected result produces a recorded controller correction, not an
+	// unbounded model retry or a manufactured completion.
+	require.NoError(t, service.Recover(ctx, participant.ID))
+	batch, err := service.Read(ctx, participant, comms.Read{ThreadID: connection.ThreadID})
+	require.NoError(t, err)
+	require.Len(t, batch.Messages, 1)
+	require.Equal(t, controller, batch.Messages[0].Sender)
 	// Configured outputs are collected by the host; the agent need not describe
 	// artifact objects or calculate file digests to finish its invocation.
 	submission := comms.Send{OperationID: "corrected-result", ThreadID: connection.ThreadID, Recipients: []string{controller}, Payload: comms.Structured("step_result", map[string]any{"outcome": "completed", "summary": "Drafted documents"})}

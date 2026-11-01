@@ -16,6 +16,9 @@ async function runSession(t, scenario, options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'factory-pi-mcp-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const messages = [];
+  const lifecycle = [];
+  let repairSent = false;
+  let rejectedResults = 0;
   const profile = join(root, 'profile');
   const { mkdirSync } = await import('node:fs');
   mkdirSync(profile);
@@ -31,7 +34,22 @@ async function runSession(t, scenario, options = {}) {
       return respond({ messages: selected, cursor: String(selected.at(-1)?.sequence || args.after || 0), more: false, closed: false });
     });
     server.registerTool('send_message', { inputSchema: z.object({ operation_id: z.string(), thread_id: z.string(), payload: z.any() }) }, async args => {
-      messages.push({ id: 'accepted-result', sequence: messages.length + 1, sender: 'worker', sender_name: 'worker', payload: args.payload });
+      const data = args.payload.parts?.find(part => part.kind === 'data')?.data;
+      if (args.payload.kind === 'step_result' && data?.artifacts?.some(item => typeof item === 'string')) {
+        rejectedResults++;
+        return { isError: true, content: [{ type: 'text', text: 'step_result.artifacts must be objects; normally omit artifacts' }], structuredContent: { error: { code: 'invalid_argument', message: 'artifacts must be objects' } } };
+      }
+      if (args.payload.kind === 'runtime_status') {
+        lifecycle.push(data.state);
+        if (messages.some(item => item.payload.kind === 'step_result')) {
+          return { isError: true, content: [{ type: 'text', text: 'attempt already submitted its result' }], structuredContent: { error: { code: 'already_completed', message: 'attempt already submitted its result' } } };
+        }
+        if (scenario === 'completion-repair' && data.state === 'idle' && !repairSent) {
+          repairSent = true;
+          messages.push({ id: 'controller-repair', sequence: messages.length + 1, sender: 'controller', sender_name: 'controller', payload: { kind: 'message', version: 1, parts: [{ kind: 'text', text: 'Your step_result was rejected. Omit artifacts, use a new operation_id, and resubmit. Do not repeat completed implementation or checks.' }] } });
+        }
+      }
+      messages.push({ id: args.payload.kind === 'step_result' ? 'accepted-result' : args.operation_id, sequence: messages.length + 1, sender: 'worker', sender_name: 'worker', payload: args.payload });
       return respond({ message_id: 'accepted-result', state: 'stored', effect: { state: 'accepted' } });
     });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
@@ -61,7 +79,11 @@ for await (const line of createInterface({input:process.stdin})) {
   } else if(scenario==='error' || scenario==='aborted') {
     console.log(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:scenario,errorMessage:'fixture model failure'}}));
   }
-  if((scenario==='peer' && request.message.startsWith('Factory thread message')) || (scenario==='recover' && turns===2)) {
+  if(scenario==='completion-repair' && turns===1) {
+    const rejected=await client.callTool({name:'send_message',arguments:{operation_id:'invalid-final',thread_id:'thread',payload:{kind:'step_result',version:1,parts:[{kind:'data',data:{outcome:'ready',summary:'done',artifacts:['reviews/build.md']}}]}}});
+    if(!rejected.isError) process.exit(3);
+  }
+  if((scenario==='completion-repair' && request.message.includes('controller-repair')) || (scenario==='peer' && request.message.startsWith('Factory thread message')) || (scenario==='recover' && turns===2)) {
     const result=await client.callTool({name:'send_message',arguments:{operation_id:'final',thread_id:'thread',payload:{kind:'step_result',version:1,parts:[{kind:'data',data:{outcome:'ready',summary:'done'}}]}}});
     if(result.isError) process.exit(2);
   }
@@ -90,14 +112,23 @@ await client.close();
   const code = await new Promise(resolve => child.on('close', resolve));
   const records = output.trim().split('\n').map(JSON.parse);
   const turns = records.filter(item => item.type === 'tool_execution_start');
-  if (scenario === 'peer' || scenario === 'recover') {
+  if (['peer', 'recover', 'completion-repair'].includes(scenario)) {
     assert.equal(code, 0, error);
     assert(messages.some(item => item.id === 'accepted-result'));
   } else {
     assert.equal(code, 1, error);
     assert.match(error, /Factory agent blocked:/);
   }
-  if (scenario === 'peer') {
+  assert.equal(lifecycle[0], 'busy');
+  if (['peer', 'recover', 'completion-repair'].includes(scenario)) assert(lifecycle.includes('idle'), 'normal settled state must be reported through MCP');
+  if (scenario === 'completion-repair') {
+    assert.equal(rejectedResults, 1);
+    assert.equal(turns.length, 2, 'repair wakes exactly one new model turn');
+    assert.match(turns[1].input, /controller-repair/);
+    assert.match(turns[1].input, /Do not repeat completed implementation/);
+    assert.equal(messages.filter(item => item.payload.kind === 'step_result').length, 1);
+    assert.deepEqual(lifecycle.slice(0, 3), ['busy', 'idle', 'busy']);
+  } else if (scenario === 'peer') {
     assert(records.some(item => item.input?.startsWith('initial work')));
     assert(records.some(item => item.input === 'operator feedback'));
     assert(records.some(item => item.input?.includes('peer-review')));
@@ -135,6 +166,7 @@ await client.close();
 }
 
 for (const [scenario, description] of Object.entries({
+  'completion-repair': 'rejected completion is repaired after a controller message wakes the idle agent',
   peer: 'idle Pi stays available, receives peer input, and finishes through MCP',
   recover: 'truncated response continues and completes through MCP',
   'no-recovery': 'zero continuation budget blocks on first truncation',

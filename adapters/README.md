@@ -29,6 +29,7 @@ The Registry Pi agents’ `start.sh` selects [Pi adapter](pi/pi-rpc-session.mjs)
 - Loads the controller's `control-plane-comms` skill and starts Pi in RPC mode.
 - Streams native JSONL output unchanged and accepts operator steering input.
 - Waits for thread messages with the official MCP client, delivering peer messages through Pi RPC and acknowledging retained delivery.
+- Reports native prompt dispatch (`busy`) and settled turns (`idle`) through typed MCP `runtime_status` messages. Reports are ordered and use stable IDs for bounded transport retries. The controller uses these observations for [completion recovery](../docs/communications.md#errors-and-bounded-recovery); it does not infer idle from quiet stdout.
 - Keeps the session available when Pi settles normally between turns. The agent ends its turn while waiting; the adapter waits in the background and wakes it on messages. The model-facing `wait_for_message` tool is hidden to avoid competing polling.
 - Continues a response truncated with `stopReason: length` at most twice per invocation. Each continuation is visible in captured output and asks for concrete incremental work. `FACTORY_PI_CONTINUATION_LIMIT` (0–10, default 2) can change that bound in the service environment before startup.
 - Terminates visibly when continuation is exhausted or a model turn ends with `error` or `aborted`. It does not disguise those states as idle waiting. An accepted final result ends the invocation; a normal idle turn does not.
@@ -40,6 +41,8 @@ An accepted member result does not complete a concurrent loop. The engine waits 
 ## Another runner
 
 Configure its native MCP client with the provisioned endpoint and environment credential. Load the shared communication skill, accept the supplied assignment, and submit typed messages through the same eight tools. To deliver messages into an idle session, translate them into that runner's supported queued/steering input mechanism. Without automatic delivery, the agent can use `wait_for_message` itself. Do not run two competing delivery loops.
+
+Report `runtime_status` with exactly one data part containing `state: "busy"` or `state: "idle"` in the assigned control thread, addressed to its controller. Report native transitions rather than output silence. A runner without this capability has no idle-completion recovery; rejected-result recovery and ordinary invocation supervision still apply. Automatic incoming-message delivery never retries an outgoing result.
 
 No adapter chooses outcomes, workflow routes, or human authority. Deterministic programs can use an MCP SDK client without an agent skill. A runner that cannot remain available across idle turns needs an explicit continuation capability before it supports concurrent collaboration.
 

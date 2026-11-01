@@ -89,7 +89,7 @@ A package sends the existing MCP `step_result` payload, with an optional `data` 
 }
 ```
 
-Bodies here are abbreviated. The package sends the original request and response JSON values without constructing another feedback envelope. `request` and `response` are output names chosen by this package, not mandatory names for every step. File `outputs` remain separate: those are project-relative files collected and hashed by the host.
+Bodies here are abbreviated. The package sends the original request and response JSON values without constructing another feedback envelope. `request` and `response` are output names chosen by this package, not mandatory names for every step. File `outputs` remain separate: those are execution-files-relative files collected and hashed by the host.
 
 Use `list_participants` to discover the controller, submit through `send_message`, and wait for `effect.state: accepted`. Accepted structured data is persisted with the result and travels in durable workflow history. It is inspectable in execution JSON (`steps[].result.data`) and the message audit. Process exit or writing a JSON file is not completion. The current MCP mutation limit remains 64 KiB including the envelope.
 

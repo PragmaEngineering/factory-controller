@@ -39,7 +39,7 @@ func (e *Engine) runConcurrent(ctx hatchet.DurableContext, input Input, stage ex
 			if err := e.stepHooks(ctx, input, step, peer.Visit, attempt, "before", nil); err != nil {
 				return nil, "", err
 			}
-			inputs = append(inputs, hatchet.RunManyOpt{Input: Work{ExecutionID: input.ExecutionID, Project: input.Project, Brief: input.Brief, Inputs: input.Inputs, Step: step, Package: packages[step.Run.Package], Visit: peer.Visit, Try: attempt, History: history, Peers: peers}})
+			inputs = append(inputs, hatchet.RunManyOpt{Input: Work{FilesDir: input.Configuration.FilesDir, ExecutionID: input.ExecutionID, Project: input.Project, Brief: input.Brief, Inputs: input.Inputs, Step: step, Package: packages[step.Run.Package], Visit: peer.Visit, Try: attempt, History: history, Peers: peers}})
 		}
 		refs, err := e.packageTask.RunMany(ctx, inputs)
 		if err != nil {

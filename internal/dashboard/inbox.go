@@ -233,7 +233,7 @@ func (m model) inboxItemDialog() *dialog {
 	if item.request != nil {
 		d.detail += "\n\nAnswer: " + string(item.request.Answer) + "\nReason: " + item.request.Reason
 		d.artifacts = reviewArtifacts(m.currentExecution(), item.request)
-		d.project = m.currentExecution().Project
+		d.filesRoot = executionFilesRoot(m.currentExecution())
 	}
 	return d
 }
@@ -280,7 +280,7 @@ func (m model) inboxReviewFiles() (string, []string) {
 	if current == nil || item == nil || item.request == nil {
 		return "", nil
 	}
-	return current.Project, reviewArtifacts(current, item.request)
+	return executionFilesRoot(current), reviewArtifacts(current, item.request)
 }
 
 func (m model) runningAgents() int {
@@ -299,7 +299,7 @@ func reviewLocations(project string, names []string) ([]string, error) {
 	}
 	var paths []string
 	for _, name := range names {
-		path, err := projectFile(project, name)
+		path, err := executionFile(project, name)
 		if err != nil {
 			return nil, err
 		}

@@ -3,6 +3,7 @@ package comms
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -13,6 +14,16 @@ import (
 )
 
 func (s *Service) Send(ctx context.Context, p Participant, args Send) (Receipt, error) {
+	receipt, err := s.send(ctx, p, args)
+	if err != nil && args.Payload.Kind == "step_result" {
+		if recoveryErr := s.recordRejectedResult(ctx, p, args, err); recoveryErr != nil {
+			slog.ErrorContext(ctx, "persist completion rejection", "participant", p.ID, "error", recoveryErr)
+		}
+	}
+	return receipt, err
+}
+
+func (s *Service) send(ctx context.Context, p Participant, args Send) (Receipt, error) {
 	return s.mutate(ctx, p, args.OperationID, struct {
 		Tool string
 		Args Send
@@ -23,6 +34,9 @@ func (s *Service) Send(ctx context.Context, p Participant, args Send) (Receipt, 
 		}
 		if args.Payload.Kind == "" || len(args.Payload.Parts) == 0 || args.Payload.Version != 1 {
 			return Receipt{}, fault("invalid_argument", "payload requires kind, version 1, and content parts")
+		}
+		if err := validateControlPayload(args.Payload); err != nil {
+			return Receipt{}, err
 		}
 		recipients := append([]string(nil), args.Recipients...)
 		if args.Recipients != nil && len(args.Recipients) == 0 {
@@ -101,13 +115,15 @@ func (s *Service) applyPayload(ctx context.Context, tx pgx.Tx, p Participant, m 
 	if kind == "message" || kind == "progress" {
 		return nil, nil
 	}
-	if kind != "publication" && kind != "step_result" && kind != "input_request" && kind != "input_response" {
+	if kind != "publication" && kind != "step_result" && kind != "input_request" && kind != "input_response" && kind != "runtime_status" {
 		return nil, nil
 	}
 	if !contains(m.Audience, identity(p.ExecutionID+"/controller")) {
 		return nil, fault("invalid_argument", "control payload must address the controller")
 	}
 	switch kind {
+	case "runtime_status":
+		return s.applyRuntimeStatus(ctx, tx, p, m)
 	case "publication":
 		return s.publish(ctx, tx, p, m)
 

@@ -83,3 +83,9 @@ The controller records stage entry/exit visits, step visits, individual attempt 
 ## Named result data and bindings
 
 Run-step results may include `data`, a map of named JSON values persisted with the accepted result. A step can bind its inputs to the original execution input or a named value from a preceding completed step visit. Missing values fail before launch; concurrent peers cannot establish ordering through bindings. Provider/agent adapters consume this common contract without scheduler-specific logic. See [packages and explicit inputs](packages.md).
+
+Execution documents are separate from project source. Configure `factory_dir` (default `.factory`) and use explicit frozen references to pass execution paths to commands. See [execution files and variables](execution-files.md).
+
+## Communication and completion recovery
+
+The [communication contract](communications.md) defines typed MCP envelopes, accepted step results, runtime lifecycle observations, and bounded controller recovery. A rejected result never advances a step. Recovery exhaustion fails the invocation and uses the existing retry/block policy; it does not choose a replacement outcome. See the [detailed interaction diagram](images/communications.svg).

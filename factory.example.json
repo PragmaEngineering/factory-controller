@@ -1,11 +1,19 @@
 {
   "name": "example-coding",
+  "factory_dir": ".factory",
+  "variables": {
+    "worktree": "${execution.factory_dir}/worktrees/${execution.id}",
+    "project_subdir": ".",
+    "workspace": "${variables.worktree}/${variables.project_subdir}"
+  },
   "packages": [
     {
       "name": "builder",
       "path": "./agents/builder",
       "entrypoint": "start.sh",
       "args": [
+        "--workspace",
+        "${variables.workspace}",
         "{prompt}"
       ]
     },
@@ -14,6 +22,8 @@
       "path": "./agents/reviewer",
       "entrypoint": "start.sh",
       "args": [
+        "--workspace",
+        "${variables.workspace}",
         "{prompt}"
       ]
     }
@@ -75,6 +85,8 @@
               "command": "python3",
               "arguments": [
                 "../registry/scripts/git-commit.py",
+                "--workspace",
+                "${variables.workspace}",
                 "--type",
                 "chore",
                 "--scope",
@@ -106,23 +118,31 @@
   "hooks": {
     "before": [
       {
-        "name": "work-branch",
+        "name": "prepare-worktree",
         "command": "python3",
         "arguments": [
-          "../registry/scripts/git-work-branch.py",
+          "../registry/scripts/git-worktree.py",
+          "--repository",
+          "${execution.project}",
+          "--workspace",
+          "${variables.worktree}",
           "--base",
-          "HEAD",
-          "--prefix",
-          "execution/"
+          "HEAD"
         ]
       }
     ],
     "after": [
       {
-        "name": "release-checkout",
+        "name": "release-worktree",
         "command": "python3",
         "arguments": [
-          "../registry/scripts/git-work-branch.py",
+          "../registry/scripts/git-worktree.py",
+          "--repository",
+          "${execution.project}",
+          "--workspace",
+          "${variables.worktree}",
+          "--base",
+          "HEAD",
           "--release"
         ]
       }

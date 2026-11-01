@@ -19,11 +19,13 @@ import (
 // Definition is the project-facing factory.json format. Paths in it are
 // resolved relative to the file, never relative to the CLI process.
 type Definition struct {
-	Hooks    execution.Hooks `json:"hooks,omitempty"`
-	Name     string          `json:"name"`
-	Agents   []Package       `json:"agents,omitempty"`
-	Packages []Package       `json:"packages,omitempty"`
-	Workflow struct {
+	FactoryDir string          `json:"factory_dir,omitempty"`
+	Variables  Variables       `json:"variables,omitempty"`
+	Hooks      execution.Hooks `json:"hooks,omitempty"`
+	Name       string          `json:"name"`
+	Agents     []Package       `json:"agents,omitempty"`
+	Packages   []Package       `json:"packages,omitempty"`
+	Workflow   struct {
 		Start  string  `json:"start"`
 		Stages []Stage `json:"stages,omitempty"`
 		Steps  []Step  `json:"steps"`
@@ -83,7 +85,17 @@ type Resolved struct {
 	Digest        string
 }
 
-func Load(path string) (Resolved, error) {
+func Load(path string) (Resolved, error) { return load(path, "") }
+
+// LoadExecution resolves execution references once before persistence.
+func LoadExecution(path, executionID string) (Resolved, error) {
+	if executionID == "" {
+		return Resolved{}, fmt.Errorf("execution ID is required")
+	}
+	return load(path, executionID)
+}
+
+func load(path, executionID string) (Resolved, error) {
 	if path == "" {
 		var err error
 		path, err = os.Getwd()
@@ -116,7 +128,15 @@ func Load(path string) (Resolved, error) {
 	if definition.Name == "" {
 		return Resolved{}, fmt.Errorf("%s: name is required", abs)
 	}
-	config := execution.Configuration{Hooks: definition.Hooks, Workflow: execution.Workflow{
+	definition, err = resolveVariables(definition, filepath.Dir(abs), executionID)
+	if err != nil {
+		return Resolved{}, fmt.Errorf("%s: %w", abs, err)
+	}
+	factoryDir, filesDir, err := executionDirectories(definition.FactoryDir, filepath.Dir(abs), executionID)
+	if err != nil {
+		return Resolved{}, err
+	}
+	config := execution.Configuration{FactoryDir: factoryDir, FilesDir: filesDir, Variables: definition.Variables, Hooks: definition.Hooks, Workflow: execution.Workflow{
 		Name:  definition.Name,
 		Start: execution.StepID(definition.Workflow.Start),
 	}}
@@ -192,12 +212,19 @@ func Load(path string) (Resolved, error) {
 			Entrypoint string                     `json:"entrypoint"`
 			Args       []string                   `json:"args,omitempty"`
 		}{pkg.With, pkg.Entrypoint, pkg.Args})
-		digest, err := packagehash.Directory(root)
+		var excluded []string
+		if relative, err := filepath.Rel(root, factoryDir); err == nil && filepath.IsLocal(relative) {
+			if relative == "." {
+				return Resolved{}, fmt.Errorf("package %q source cannot equal factory_dir", pkg.Name)
+			}
+			excluded = []string{factoryDir}
+		}
+		digest, err := packagehash.Directory(root, excluded...)
 		if err != nil {
 			return Resolved{}, fmt.Errorf("hash package %q: %w", pkg.Name, err)
 		}
 		config.Packages = append(config.Packages, execution.PackageSnapshot{
-			Name: pkg.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
+			ExcludedPaths: excluded, Name: pkg.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
 		})
 	}
 	for _, step := range steps {

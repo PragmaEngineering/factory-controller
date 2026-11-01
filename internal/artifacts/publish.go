@@ -19,9 +19,9 @@ func (h HostCollector) Publish(_ context.Context, work execution.Work, paths []s
 		return nil, fmt.Errorf("publication storage is not configured")
 	}
 	if len(paths) == 0 || len(paths) > 128 {
-		return nil, fmt.Errorf("publish 1..128 explicit project files")
+		return nil, fmt.Errorf("publish 1..128 explicit execution files")
 	}
-	collected, err := Collect(work.Project, paths, nil)
+	collected, err := Collect(work.ArtifactDirectory(), paths, nil)
 	if err != nil {
 		return nil, err
 	}

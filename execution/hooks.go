@@ -49,6 +49,8 @@ func (h Hooks) Validate() error {
 // HookContext is the versioned JSON stdin contract. InvocationID is unchanged
 // when retrying the hook; step attempts and stage entries have distinct IDs.
 type HookContext struct {
+	FilesDir     string            `json:"files_dir,omitempty"`
+	Variables    map[string]string `json:"variables,omitempty"`
 	Version      int               `json:"version"`
 	InvocationID string            `json:"invocation_id"`
 	ExecutionID  string            `json:"execution_id"`

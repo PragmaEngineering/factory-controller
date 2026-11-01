@@ -69,3 +69,5 @@ Write newline-delimited JSON records to supervised stdout. Native output can coe
 - Each record must fit within 256 KiB. Invalid and oversized records are ignored for accounting; raw output is retained.
 
 This is runtime telemetry, separate from agent messages and completion. Agents still use MCP for control-plane communication. Telemetry cannot complete a step. Framing state, counters, output, and stream entries commit together in PostgreSQL; partial lines survive supervisor restart. No provider prices or runner-specific parsing live in the control plane.
+
+Execution documents are separate from project source. Configure `factory_dir` (default `.factory`) and use explicit frozen references to pass execution paths to commands. See [execution files and variables](execution-files.md).

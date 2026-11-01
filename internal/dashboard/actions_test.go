@@ -187,17 +187,17 @@ func TestDecisionAcceptsFeedbackAndConfirmsBeforeSend(t *testing.T) {
 	require.True(t, called)
 }
 
-func TestReviewFilesStayInsideProject(t *testing.T) {
+func TestReviewFilesStayInsideStorage(t *testing.T) {
 	project := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.html")
 	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0600))
 	require.NoError(t, os.WriteFile(filepath.Join(project, "spec.html"), []byte("spec"), 0600))
-	_, err := projectFile(project, "spec.html")
+	_, err := executionFile(project, "spec.html")
 	require.NoError(t, err)
-	_, err = projectFile(project, "../outside.html")
+	_, err = executionFile(project, "../outside.html")
 	require.Error(t, err)
 	require.NoError(t, os.Symlink(outside, filepath.Join(project, "link.html")))
-	_, err = projectFile(project, "link.html")
+	_, err = executionFile(project, "link.html")
 	require.Error(t, err)
 }
 
@@ -237,4 +237,17 @@ func TestDialogFitsTerminalAndKeepsFocusedOptionVisible(t *testing.T) {
 	require.Contains(t, view, "request Z")
 	require.LessOrEqual(t, lipgloss.Width(view), m.width)
 	require.LessOrEqual(t, lipgloss.Height(view), m.height)
+}
+
+func TestDecisionReviewUsesPinnedExecutionFiles(t *testing.T) {
+	project := t.TempDir()
+	files := t.TempDir()
+	record := &control.Execution{Project: project, Configuration: execution.Configuration{FilesDir: files}}
+	require.Equal(t, files, executionFilesRoot(record))
+	require.NoError(t, os.WriteFile(filepath.Join(files, "spec.html"), []byte("execution spec"), 0600))
+	path, err := executionFile(executionFilesRoot(record), "spec.html")
+	require.NoError(t, err)
+	expected, err := filepath.EvalSymlinks(filepath.Join(files, "spec.html"))
+	require.NoError(t, err)
+	require.Equal(t, expected, path)
 }

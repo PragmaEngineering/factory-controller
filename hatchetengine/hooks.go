@@ -9,7 +9,7 @@ import (
 )
 
 func hookContext(input Input, scope, boundary string) execution.HookContext {
-	return execution.HookContext{Version: 1, ExecutionID: input.ExecutionID, Project: input.Project, Scope: scope, Boundary: boundary}
+	return execution.HookContext{FilesDir: input.Configuration.FilesDir, Variables: input.Configuration.Variables, Version: 1, ExecutionID: input.ExecutionID, Project: input.Project, Scope: scope, Boundary: boundary}
 }
 
 func participants(input Input, history []CompletedStep) []execution.HookParticipant {

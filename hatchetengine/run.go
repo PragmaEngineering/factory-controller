@@ -197,6 +197,7 @@ func (e *Engine) runPackage(
 			return execution.StepResult{}, attempt, err
 		}
 		work := Work{
+			FilesDir:    input.Configuration.FilesDir,
 			ExecutionID: input.ExecutionID,
 			Project:     input.Project,
 			Brief:       input.Brief,

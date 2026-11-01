@@ -57,7 +57,7 @@ type dialog struct {
 	request     *control.Request
 	contexts    []control.Context
 	sessions    []sessions.Session
-	project     string
+	filesRoot   string
 	targetID    string
 	artifacts   []string
 	scroll      int
@@ -123,7 +123,7 @@ func (m model) actionsDialog() *dialog {
 }
 
 func (m model) newDialog() *dialog {
-	return &dialog{kind: "new", title: "New execution", detail: "The config directory is the project workspace.",
+	return &dialog{kind: "new", title: "New execution", detail: "Choose a workflow configuration and provide its input.",
 		fields: []field{
 			inputField("Brief", "", "A short request; optional when files are given"),
 			inputField("Input files", "", "Optional paths, separated by commas"),
@@ -187,7 +187,7 @@ func (m model) answerDialog(request *control.Request) *dialog {
 	current := m.executionByID(request.ExecutionID)
 	return &dialog{kind: "answer", title: title, detail: request.Prompt, request: request,
 		options: choices, fields: []field{inputField(label, "", placeholder)},
-		artifacts: reviewArtifacts(current, request), project: projectOf(current)}
+		artifacts: reviewArtifacts(current, request), filesRoot: executionFilesRoot(current)}
 }
 
 func (m model) retryDialog() *dialog {
@@ -272,9 +272,9 @@ func (m model) dialogKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if len(d.artifacts) > 0 && (d.kind != "answer" || d.field == 0) {
 		switch key.String() {
 		case "o":
-			return m, openArtifacts(&control.Execution{Project: d.project}, d.artifacts)
+			return m, openArtifacts(&control.Execution{Project: d.filesRoot}, d.artifacts)
 		case "c":
-			return m, copyReviewFiles(d.project, d.artifacts)
+			return m, copyReviewFiles(d.filesRoot, d.artifacts)
 		}
 	}
 	readOnly := d.kind == "help" || d.kind == "inspect" || d.kind == "error"
@@ -712,7 +712,7 @@ func openArtifacts(current *control.Execution, names []string) tea.Cmd {
 			return action{err: errors.New("No files are listed for this item.")}
 		}
 		for _, name := range names {
-			path, err := projectFile(current.Project, name)
+			path, err := executionFile(executionFilesRoot(current), name)
 			if err != nil {
 				return action{err: err}
 			}
@@ -749,16 +749,19 @@ func copyReviewFiles(project string, names []string) tea.Cmd {
 	}
 }
 
-func projectOf(current *control.Execution) string {
+func executionFilesRoot(current *control.Execution) string {
 	if current == nil {
 		return ""
+	}
+	if current.Configuration.FilesDir != "" {
+		return current.Configuration.FilesDir
 	}
 	return current.Project
 }
 
-func projectFile(project, name string) (string, error) {
+func executionFile(project, name string) (string, error) {
 	if filepath.IsAbs(name) {
-		return "", fmt.Errorf("file must be project-relative: %s", name)
+		return "", fmt.Errorf("file must be relative to execution storage: %s", name)
 	}
 	project, err := filepath.EvalSymlinks(project)
 	if err != nil {
@@ -771,7 +774,7 @@ func projectFile(project, name string) (string, error) {
 	}
 	relative, err := filepath.Rel(project, path)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("file leaves project: %s", name)
+		return "", fmt.Errorf("file leaves execution storage: %s", name)
 	}
 	info, err := os.Stat(path)
 	if err != nil {

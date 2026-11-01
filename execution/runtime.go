@@ -25,6 +25,7 @@ type Observer interface {
 }
 
 type Work struct {
+	FilesDir    string          `json:"files_dir,omitempty"`
 	ExecutionID string          `json:"execution_id"`
 	Project     string          `json:"project"`
 	Brief       string          `json:"brief"`
@@ -89,4 +90,13 @@ type Peer struct {
 	Name  string `json:"name"`
 	Visit uint   `json:"visit"`
 	Try   uint   `json:"try"`
+}
+
+// ArtifactDirectory is execution-owned storage. Older persisted work without
+// the field retains its original collection root; new executions always pin it.
+func (w Work) ArtifactDirectory() string {
+	if w.FilesDir != "" {
+		return w.FilesDir
+	}
+	return w.Project
 }

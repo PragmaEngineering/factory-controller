@@ -24,7 +24,7 @@ func (s *Service) publish(ctx context.Context, tx pgx.Tx, p Participant, m *Mess
 	}
 	var raw []byte
 	if err = tx.QueryRow(ctx, `SELECT work FROM factory.comms_participants WHERE id=$1 AND kind='agent'`, p.ID).Scan(&raw); err != nil {
-		return nil, fault("not_authorized", "only assigned workers publish project files")
+		return nil, fault("not_authorized", "only assigned workers publish execution files")
 	}
 	var work execution.Work
 	if err = json.Unmarshal(raw, &work); err != nil {

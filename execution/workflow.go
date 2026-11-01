@@ -60,20 +60,24 @@ type HumanPolicy struct {
 // Configuration is an immutable, fully resolved execution definition. It
 // contains no secret values; Settings may contain references to secrets.
 type Configuration struct {
-	Hooks    Hooks             `json:"hooks,omitempty"`
-	Workflow Workflow          `json:"workflow"`
-	Packages []PackageSnapshot `json:"packages"`
+	FactoryDir string            `json:"factory_dir,omitempty"`
+	FilesDir   string            `json:"files_dir,omitempty"`
+	Variables  map[string]string `json:"variables,omitempty"`
+	Hooks      Hooks             `json:"hooks,omitempty"`
+	Workflow   Workflow          `json:"workflow"`
+	Packages   []PackageSnapshot `json:"packages"`
 }
 
 // PackageSnapshot records the package and effective settings selected for a
 // run step. The runner interprets Settings; the controller pins its bytes.
 type PackageSnapshot struct {
-	Name     string          `json:"name"`
-	Source   string          `json:"source"`
-	Digest   string          `json:"digest"`
-	Runner   string          `json:"runner"`
-	Settings json.RawMessage `json:"settings,omitempty"`
-	Access   AccessProfile   `json:"access"`
+	ExcludedPaths []string        `json:"excluded_paths,omitempty"`
+	Name          string          `json:"name"`
+	Source        string          `json:"source"`
+	Digest        string          `json:"digest"`
+	Runner        string          `json:"runner"`
+	Settings      json.RawMessage `json:"settings,omitempty"`
+	Access        AccessProfile   `json:"access"`
 }
 
 // AccessProfile is a requested grant, not proof of isolation. Empty lists

@@ -21,5 +21,5 @@ func (HostCollector) Collect(_ context.Context, work execution.Work, extra []str
 			seen[path] = true
 		}
 	}
-	return Collect(work.Project, required, nil)
+	return Collect(work.ArtifactDirectory(), required, nil)
 }

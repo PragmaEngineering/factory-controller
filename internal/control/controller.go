@@ -40,15 +40,22 @@ func (c *Controller) Exec(ctx context.Context, request ExecRequest) (Execution, 
 	if c.Engine == nil {
 		return Execution{}, errors.New("Factory execution service is not configured")
 	}
-	config, err := factoryconfig.Load(request.ConfigPath)
+	id := uuid.NewString()
+	config, err := factoryconfig.LoadExecution(request.ConfigPath, id)
 	if err != nil {
 		return Execution{}, err
 	}
-	id := uuid.NewString()
-	inputRoot := filepath.Join(c.Root, "executions", id, "inputs")
+	executionDirectory := filepath.Dir(config.Configuration.FilesDir)
+	if err := os.MkdirAll(config.Configuration.FilesDir, 0700); err != nil {
+		return Execution{}, fmt.Errorf("prepare execution files: %w", err)
+	}
+	if err := os.Chmod(executionDirectory, 0700); err != nil {
+		return Execution{}, fmt.Errorf("protect execution directory: %w", err)
+	}
+	inputRoot := filepath.Join(executionDirectory, "inputs")
 	bundle, err := inputs.Capture(inputRoot, request.Brief, request.Files, bytes.NewReader(request.Stdin))
 	if err != nil {
-		_ = os.RemoveAll(filepath.Join(c.Root, "executions", id))
+		_ = os.RemoveAll(executionDirectory)
 		return Execution{}, err
 	}
 	description := strings.TrimSpace(request.Brief)
@@ -65,7 +72,7 @@ func (c *Controller) Exec(ctx context.Context, request ExecRequest) (Execution, 
 		Configuration: config.Configuration,
 	})
 	if err != nil {
-		_ = os.RemoveAll(filepath.Join(c.Root, "executions", id))
+		_ = os.RemoveAll(executionDirectory)
 		return Execution{}, err
 	}
 	var artifacts []execution.Artifact

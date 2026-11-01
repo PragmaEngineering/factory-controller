@@ -1,0 +1,344 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="6460" viewBox="0 0 1800 6460" role="img" aria-labelledby="title description">
+<title id="title">Pragma communication server, MCP contract, runtime delivery and completion recovery</title>
+<desc id="description">Detailed implementation diagram of assignment provisioning, eight MCP tools, A2A envelopes, result acceptance, artifacts and publications, participant-scoped delivery, persisted bounded recovery, database tables, and runner-independent boundaries.</desc>
+<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#cedae3" opacity=".5"/></pattern><linearGradient id="paper" x2="0" y2="1"><stop stop-color="#f8fafc"/><stop offset="1" stop-color="#edf3f7"/></linearGradient><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#193047" flood-opacity=".06"/></filter><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#657b90" stroke-width="1.5"/></marker></defs>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif}.mono{font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace}</style>
+<rect width="1800" height="6460" fill="url(#paper)"/><rect width="1800" height="6460" fill="url(#grid)"/>
+
+<rect x="64" y="56" width="48" height="5" rx="2" fill="#087e83"/>
+<text x="64" y="100" font-size="18" fill="#087e83" font-weight="600">PRAGMA / CONTROL PLANE / IMPLEMENTED CONTRACT</text>
+<text x="60" y="168" font-size="52" fill="#203449" font-weight="600">Communication, without implicit completion</text>
+<text x="64" y="211" font-size="24" fill="#52677c" font-weight="400">Typed messages • durable conversations • native session delivery • bounded protocol recovery</text>
+<text x="64" y="278" font-size="21" fill="#087e83" font-weight="600">01 / EXECUTION AND TRUST BOUNDARIES</text>
+<text x="64" y="314" font-size="20" fill="#52677c" font-weight="400">The control plane owns policy; the communication service owns durable messaging; adapters own native runner behavior.</text>
+<rect x="64" y="344" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="368" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="88" y="380" font-size="16" fill="#087e83" font-weight="600">POLICY / GO</text>
+<text x="88" y="416" font-size="26" fill="#203449" font-weight="600">Controller + invocation supervisor</text>
+<text x="88" y="453" font-size="18" fill="#52677c" font-weight="400">Pins execution, step, visit, attempt and package.</text>
+<text x="88" y="481" font-size="18" fill="#52677c" font-weight="400">Provisions the assigned conversation/identity.</text>
+<text x="88" y="509" font-size="18" fill="#52677c" font-weight="400">Builds prompt, allowed outcomes and example.</text>
+<text x="88" y="537" font-size="18" fill="#52677c" font-weight="400">Starts the package; supervises its session.</text>
+<text x="88" y="565" font-size="18" fill="#52677c" font-weight="400">Consumes accepted result; applies routes.</text>
+<rect x="640" y="344" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="640" y="368" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="664" y="380" font-size="16" fill="#087e83" font-weight="600">PROTOCOL / GO</text>
+<text x="664" y="416" font-size="26" fill="#203449" font-weight="600">Communication service</text>
+<text x="664" y="453" font-size="18" fill="#52677c" font-weight="400">Authenticated Streamable HTTP at /mcp.</text>
+<text x="664" y="481" font-size="18" fill="#52677c" font-weight="400">Validates envelope + reserved data schemas.</text>
+<text x="664" y="509" font-size="18" fill="#52677c" font-weight="400">Scopes membership, audience and authority.</text>
+<text x="664" y="537" font-size="18" fill="#52677c" font-weight="400">Commits effects + messages + receipts.</text>
+<text x="664" y="565" font-size="18" fill="#52677c" font-weight="400">Persists recovery state; sends corrections.</text>
+<rect x="1216" y="344" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="1216" y="368" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="1240" y="380" font-size="16" fill="#087e83" font-weight="600">RUNNER / PI RPC OR ANOTHER NATIVE API</text>
+<text x="1240" y="416" font-size="26" fill="#203449" font-weight="600">Runtime adapter → agent</text>
+<text x="1240" y="453" font-size="18" fill="#52677c" font-weight="400">Private profile, scoped MCP connection + skill.</text>
+<text x="1240" y="481" font-size="18" fill="#52677c" font-weight="400">Passes assignment to the native agent.</text>
+<text x="1240" y="509" font-size="18" fill="#52677c" font-weight="400">Delivers peer/controller messages to session.</text>
+<text x="1240" y="537" font-size="18" fill="#52677c" font-weight="400">Reports actual busy / idle transitions.</text>
+<text x="1240" y="565" font-size="18" fill="#52677c" font-weight="400">Agent performs work and submits its result.</text>
+<path d="M584,460 L640,460" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<path d="M1160,460 L1216,460" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="64" y="650" width="810" height="220" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="674" width="4" height="172" rx="2" fill="#087e83"/>
+<text x="88" y="686" font-size="16" fill="#087e83" font-weight="600">EXECUTION → STEP → VISIT → ATTEMPT</text>
+<text x="88" y="722" font-size="26" fill="#203449" font-weight="600">Provision once; recover the same invocation</text>
+<text x="88" y="759" font-size="18" fill="#52677c" font-weight="400">Deterministic participant identity is scoped to all four identifiers.</text>
+<text x="88" y="787" font-size="18" fill="#52677c" font-weight="400">Provisioning persists identity/session before launch; replay retrieves it.</text>
+<text x="88" y="815" font-size="18" fill="#52677c" font-weight="400">A recorded accepted result is returned without launching another worker.</text>
+<text x="88" y="843" font-size="18" fill="#52677c" font-weight="400">Replacement attempts fence older credentials. No cross-execution peers.</text>
+<rect x="926" y="650" width="810" height="220" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="926" y="674" width="4" height="172" rx="2" fill="#a56730"/>
+<text x="950" y="686" font-size="16" fill="#a56730" font-weight="600">AUTHORIZATION ≠ SANDBOXING</text>
+<text x="950" y="722" font-size="26" fill="#203449" font-weight="600">Credentials and host limitations</text>
+<text x="950" y="759" font-size="18" fill="#52677c" font-weight="400">Bearer credential is supplied to the native MCP client, never the prompt.</text>
+<text x="950" y="787" font-size="18" fill="#52677c" font-weight="400">Local listener requires loopback Host and rejects browser Origin headers.</text>
+<text x="950" y="815" font-size="18" fill="#52677c" font-weight="400">Authenticated identity determines sender and human/controller authority.</text>
+<text x="950" y="843" font-size="18" fill="#52677c" font-weight="400">Host execution still has the service user’s filesystem/network permissions.</text>
+<text x="64" y="940" font-size="21" fill="#087e83" font-weight="600">02 / EIGHT TOOLS, ONE MESSAGE TRANSPORT</text>
+<text x="64" y="976" font-size="20" fill="#52677c" font-weight="400">Thread membership is separate from process lifecycle. A conversation cannot launch an agent or complete an execution.</text>
+<rect x="64" y="1004" width="1672" height="378" rx="16" fill="#fff" stroke="#cedae3"/>
+<text x="92" y="1046" font-size="20" fill="#087e83" font-weight="600" class="mono">create_thread</text>
+<text x="435" y="1046" font-size="20" fill="#203449" font-weight="400">Existing participants in this execution; creator becomes owner.</text>
+<path d="M88 1062 H1712" stroke="#e9eef2"/>
+<text x="92" y="1089" font-size="20" fill="#087e83" font-weight="600" class="mono">add_participant</text>
+<text x="435" y="1089" font-size="20" fill="#203449" font-weight="400">Owner / human / controller; add known identity, not a process.</text>
+<path d="M88 1105 H1712" stroke="#e9eef2"/>
+<text x="92" y="1132" font-size="20" fill="#087e83" font-weight="600" class="mono">remove_participants</text>
+<text x="435" y="1132" font-size="20" fill="#203449" font-weight="400">Remove memberships atomically; preserve conversation history.</text>
+<path d="M88 1148 H1712" stroke="#e9eef2"/>
+<text x="92" y="1175" font-size="20" fill="#087e83" font-weight="600" class="mono">list_participants</text>
+<text x="435" y="1175" font-size="20" fill="#203449" font-weight="400">Discover IDs, assignments, kinds and active / removed state.</text>
+<path d="M88 1191 H1712" stroke="#e9eef2"/>
+<text x="92" y="1218" font-size="20" fill="#087e83" font-weight="600" class="mono">send_message</text>
+<text x="435" y="1218" font-size="20" fill="#203449" font-weight="400">Address recipients or broadcast; apply typed control effects.</text>
+<path d="M88 1234 H1712" stroke="#e9eef2"/>
+<text x="92" y="1261" font-size="20" fill="#087e83" font-weight="600" class="mono">read_messages</text>
+<text x="435" y="1261" font-size="20" fill="#203449" font-weight="400">History / unread + cursor; ack_through records delivery acknowledgment.</text>
+<path d="M88 1277 H1712" stroke="#e9eef2"/>
+<text x="92" y="1304" font-size="20" fill="#087e83" font-weight="600" class="mono">wait_for_message</text>
+<text x="435" y="1304" font-size="20" fill="#203449" font-weight="400">Long-poll up to 30 s; empty timeout is normal; no model injection.</text>
+<path d="M88 1320 H1712" stroke="#e9eef2"/>
+<text x="92" y="1347" font-size="20" fill="#087e83" font-weight="600" class="mono">close_thread</text>
+<text x="435" y="1347" font-size="20" fill="#203449" font-weight="400">Prevent further writes; retain history; does not complete workflow.</text>
+<text x="64" y="1450" font-size="21" fill="#087e83" font-weight="600">03 / WIRE CONTRACT AND CONTENT</text>
+<text x="64" y="1486" font-size="20" fill="#52677c" font-weight="400">A2A 0.3 content parts are reused. This is not the full A2A task protocol. Custom kinds remain possible.</text>
+<rect x="64" y="1518" width="810" height="430" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="1542" width="4" height="382" rx="2" fill="#087e83"/>
+<text x="88" y="1554" font-size="16" fill="#087e83" font-weight="600">OUTER ENVELOPE</text>
+<text x="88" y="1590" font-size="26" fill="#203449" font-weight="600">send_message arguments</text>
+<text x="88" y="1627" font-size="18" fill="#52677c" font-weight="400" class="mono">{</text>
+<text x="88" y="1655" font-size="18" fill="#52677c" font-weight="400" class="mono">  &quot;operation_id&quot;: &quot;unique-for-this-content&quot;,</text>
+<text x="88" y="1683" font-size="18" fill="#52677c" font-weight="400" class="mono">  &quot;thread_id&quot;: &quot;assigned-thread-id&quot;,</text>
+<text x="88" y="1711" font-size="18" fill="#52677c" font-weight="400" class="mono">  &quot;recipients&quot;: [&quot;controller-id&quot;],</text>
+<text x="88" y="1739" font-size="18" fill="#52677c" font-weight="400" class="mono">  &quot;payload&quot;: {</text>
+<text x="88" y="1767" font-size="18" fill="#52677c" font-weight="400" class="mono">    &quot;kind&quot;: &quot;step_result&quot;, &quot;version&quot;: 1,</text>
+<text x="88" y="1795" font-size="18" fill="#52677c" font-weight="400" class="mono">    &quot;parts&quot;: [{&quot;kind&quot;: &quot;data&quot;, &quot;data&quot;: {</text>
+<text x="88" y="1823" font-size="18" fill="#52677c" font-weight="400" class="mono">      &quot;outcome&quot;: &quot;allowed-outcome&quot;,</text>
+<text x="88" y="1851" font-size="18" fill="#52677c" font-weight="400" class="mono">      &quot;summary&quot;: &quot;factual handoff&quot;</text>
+<text x="88" y="1879" font-size="18" fill="#52677c" font-weight="400" class="mono">    }}]</text>
+<text x="88" y="1907" font-size="18" fill="#52677c" font-weight="400" class="mono">  }</text>
+<text x="88" y="1935" font-size="18" fill="#52677c" font-weight="400" class="mono">}</text>
+<rect x="926" y="1518" width="810" height="404" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="926" y="1542" width="4" height="356" rx="2" fill="#087e83"/>
+<text x="950" y="1554" font-size="16" fill="#087e83" font-weight="600">EXACTLY ONE DATA PART; OPTIONAL TEXT PARTS</text>
+<text x="950" y="1590" font-size="26" fill="#203449" font-weight="600">Reserved payload kinds</text>
+<text x="950" y="1627" font-size="18" fill="#52677c" font-weight="400">step_result → outcome, summary; optional publication_id,</text>
+<text x="950" y="1655" font-size="18" fill="#52677c" font-weight="400">  artifacts (objects), evidence references, named data outputs.</text>
+<text x="950" y="1683" font-size="18" fill="#52677c" font-weight="400">publication → files: explicit execution-files-relative names.</text>
+<text x="950" y="1711" font-size="18" fill="#52677c" font-weight="400">input_request → prompt; optional options; human + controller.</text>
+<text x="950" y="1739" font-size="18" fill="#52677c" font-weight="400">input_response → request_id + authorized human answer.</text>
+<text x="950" y="1767" font-size="18" fill="#52677c" font-weight="400">runtime_status → state: busy | idle; emitted by adapter.</text>
+<text x="950" y="1795" font-size="18" fill="#52677c" font-weight="400"></text>
+<text x="950" y="1823" font-size="18" fill="#52677c" font-weight="400">Ordinary message / progress: no terminal workflow effect.</text>
+<text x="950" y="1851" font-size="18" fill="#52677c" font-weight="400">Unknown application kinds cannot bypass reserved contracts.</text>
+<text x="950" y="1879" font-size="18" fill="#52677c" font-weight="400">Both advertised schema and server validation are required.</text>
+<text x="64" y="1990" font-size="21" fill="#087e83" font-weight="600">04 / RESULT ACCEPTANCE — TRANSACTIONAL SEQUENCE</text>
+<text x="64" y="2026" font-size="20" fill="#52677c" font-weight="400">The agent chooses a configured outcome. The server verifies the handoff; the workflow engine decides what runs next.</text>
+<rect x="64" y="2056" width="1672" height="436" rx="16" fill="#fff" stroke="#cedae3"/>
+<text x="90" y="2094" font-size="18" fill="#087e83" font-weight="600">1  AUTHENTICATE + FENCE</text>
+<text x="90" y="2119" font-size="19" fill="#203449" font-weight="400">Worker belongs to active execution / attempt; assigned control thread; controller in audience.</text>
+<text x="90" y="2151" font-size="18" fill="#087e83" font-weight="600">2  CHECK STRUCTURE</text>
+<text x="90" y="2176" font-size="19" fill="#203449" font-weight="400">Raw tool envelope + typed data schema; reject string artifacts, missing fields and wrong types.</text>
+<text x="90" y="2208" font-size="18" fill="#087e83" font-weight="600">3  CHECK SEMANTICS</text>
+<text x="90" y="2233" font-size="19" fill="#203449" font-weight="400">Configured outcome; nonempty summary; no prior result; no unresolved formal input request.</text>
+<text x="90" y="2265" font-size="18" fill="#087e83" font-weight="600">4  VERIFY REVISION + FILES</text>
+<text x="90" y="2290" font-size="19" fill="#203449" font-weight="400">Current publication ID; unchanged published digests; collect applicable configured output files.</text>
+<text x="90" y="2322" font-size="18" fill="#087e83" font-weight="600">5  COMMIT TOGETHER</text>
+<text x="90" y="2347" font-size="19" fill="#203449" font-weight="400">Persist result, message, idempotency receipt and activity in the same database transaction.</text>
+<text x="90" y="2379" font-size="18" fill="#087e83" font-weight="600">6  RETURN ACCEPTANCE</text>
+<text x="90" y="2404" font-size="19" fill="#203449" font-weight="400">state: stored + effect.state: accepted + routing: pending. Stored alone is insufficient.</text>
+<text x="90" y="2436" font-size="18" fill="#087e83" font-weight="600">7  ADVANCE VIA ENGINE</text>
+<text x="90" y="2461" font-size="19" fill="#203449" font-weight="400">Supervisor sees accepted result; drains output/receipt, stops process; engine applies configured route.</text>
+<rect x="64" y="2524" width="1672" height="150" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="2548" width="4" height="102" rx="2" fill="#a56730"/>
+<text x="88" y="2560" font-size="16" fill="#a56730" font-weight="600">BOUNDARY</text>
+<text x="88" y="2596" font-size="26" fill="#203449" font-weight="600">What acceptance never means</text>
+<text x="88" y="2633" font-size="18" fill="#52677c" font-weight="400">Not human approval. Not proof that claimed checks are true. Not completion of peers or a concurrent loop.</text>
+<text x="88" y="2661" font-size="18" fill="#52677c" font-weight="400">Not a permission grant. Not exactly-once workflow execution. Process exit, chat “done” and idle turns cannot substitute.</text>
+<text x="64" y="2745" font-size="21" fill="#087e83" font-weight="600">05 / DELIVERY INTO LIVE AGENT SESSIONS</text>
+<text x="64" y="2781" font-size="20" fill="#52677c" font-weight="400">Database rows carry content. Notifications only wake readers. Native runtime APIs make the content visible to a model.</text>
+<rect x="64" y="2810" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="2834" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="88" y="2846" font-size="16" fill="#087e83" font-weight="600">ONE CURSOR PER DELIVERY LOOP</text>
+<text x="88" y="2882" font-size="26" fill="#203449" font-weight="600">Read → handoff → acknowledge</text>
+<text x="88" y="2919" font-size="18" fill="#52677c" font-weight="400">Adapter long-polls visible messages after cursor.</text>
+<text x="88" y="2947" font-size="18" fill="#52677c" font-weight="400">Database NOTIFY or timeout triggers reread.</text>
+<text x="88" y="2975" font-size="18" fill="#52677c" font-weight="400">Own messages are skipped as incoming input.</text>
+<text x="88" y="3003" font-size="18" fill="#52677c" font-weight="400">Peer/controller content → native prompt/steer.</text>
+<text x="88" y="3031" font-size="18" fill="#52677c" font-weight="400">Advance cursor only after successful handoff.</text>
+<text x="88" y="3059" font-size="18" fill="#52677c" font-weight="400">Reconnect with retained cursor; deduplicate.</text>
+<rect x="640" y="2810" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="640" y="2834" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="664" y="2846" font-size="16" fill="#087e83" font-weight="600">RUNNER-NEUTRAL OBSERVATIONS</text>
+<text x="664" y="2882" font-size="26" fill="#203449" font-weight="600">Pi runtime lifecycle</text>
+<text x="664" y="2919" font-size="18" fill="#52677c" font-weight="400">Prompt dispatch → runtime_status: busy.</text>
+<text x="664" y="2947" font-size="18" fill="#52677c" font-weight="400">agent_settled → runtime_status: idle.</text>
+<text x="664" y="2975" font-size="18" fill="#52677c" font-weight="400">MCP sends are serialized; unique operation IDs.</text>
+<text x="664" y="3003" font-size="18" fill="#52677c" font-weight="400">Up to three unchanged-ID status attempts.</text>
+<text x="664" y="3031" font-size="18" fill="#52677c" font-weight="400">Persistent report failure ends session visibly.</text>
+<text x="664" y="3059" font-size="18" fill="#52677c" font-weight="400">Quiet stdout never establishes idle.</text>
+<rect x="1216" y="2810" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="1216" y="2834" width="4" height="222" rx="2" fill="#087e83"/>
+<text x="1240" y="2846" font-size="16" fill="#087e83" font-weight="600">HUMAN INPUT AND CONCURRENCY</text>
+<text x="1240" y="2882" font-size="26" fill="#203449" font-weight="600">Peer / operator interaction</text>
+<text x="1240" y="2919" font-size="18" fill="#52677c" font-weight="400">Concurrent agents exchange publications/findings.</text>
+<text x="1240" y="2947" font-size="18" fill="#52677c" font-weight="400">Sequential steps receive accepted handoffs.</text>
+<text x="1240" y="2975" font-size="18" fill="#52677c" font-weight="400">Formal question → input_request → human reply.</text>
+<text x="1240" y="3003" font-size="18" fill="#52677c" font-weight="400">Configured human gate stays authoritative.</text>
+<text x="1240" y="3031" font-size="18" fill="#52677c" font-weight="400">Native RPC input can queue or steer a live turn.</text>
+<text x="1240" y="3059" font-size="18" fill="#52677c" font-weight="400">Stored messages cannot wake a stopped process.</text>
+<path d="M584,2944 L640,2944" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<path d="M1160,2944 L1216,2944" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<text x="64" y="3150" font-size="21" fill="#087e83" font-weight="600">06 / BOUNDED COMPLETION RECOVERY</text>
+<text x="64" y="3186" font-size="20" fill="#52677c" font-weight="400">Protocol repair is deterministic. It never writes product code, chooses an outcome or manufactures a successful result.</text>
+<rect x="64" y="3216" width="810" height="238" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="3240" width="4" height="190" rx="2" fill="#a65b63"/>
+<text x="88" y="3252" font-size="16" fill="#a65b63" font-weight="600">PRECISE TOOL ERROR + DURABLE REJECTION MARKER</text>
+<text x="88" y="3288" font-size="26" fill="#203449" font-weight="600">A / Rejected terminal result</text>
+<text x="88" y="3325" font-size="18" fill="#52677c" font-weight="400">Return invalid_argument / invalid_outcome / revision or file error.</text>
+<text x="88" y="3353" font-size="18" fill="#52677c" font-weight="400">Invalid data is never disguised as temporary unavailability.</text>
+<text x="88" y="3381" font-size="18" fill="#52677c" font-weight="400">Supervisor checks recovery; controller addresses that worker.</text>
+<text x="88" y="3409" font-size="18" fill="#52677c" font-weight="400">Message includes safe reason, allowed outcomes + full example.</text>
+<text x="88" y="3437" font-size="18" fill="#52677c" font-weight="400">Agent corrects its handoff; do not redo finished implementation.</text>
+<rect x="926" y="3216" width="810" height="238" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="926" y="3240" width="4" height="190" rx="2" fill="#a56730"/>
+<text x="950" y="3252" font-size="16" fill="#a56730" font-weight="600">EXPLICIT RUNTIME OBSERVATION REQUIRED</text>
+<text x="950" y="3288" font-size="26" fill="#203449" font-weight="600">B / Idle, incomplete invocation</text>
+<text x="950" y="3325" font-size="18" fill="#52677c" font-weight="400">After two idle minutes without an accepted result, remind.</text>
+<text x="950" y="3353" font-size="18" fill="#52677c" font-weight="400">Exempt a pending formal human request in the thread.</text>
+<text x="950" y="3381" font-size="18" fill="#52677c" font-weight="400">Exempt an incomplete peer that is busy / lifecycle unknown.</text>
+<text x="950" y="3409" font-size="18" fill="#52677c" font-weight="400">If every incomplete peer is idle, recovery can prompt them.</text>
+<text x="950" y="3437" font-size="18" fill="#52677c" font-weight="400">No idle-telemetry runner: rejection recovery still applies.</text>
+<path d="M468,3454 L468,3490" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<path d="M1330,3454 L1330,3490" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="64" y="3494" width="1672" height="240" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="3518" width="4" height="192" rx="2" fill="#087e83"/>
+<text x="88" y="3530" font-size="16" fill="#087e83" font-weight="600">DEFAULTS: 2 REMINDERS • ≥30 s APART • IDLE TRIGGER: 2 min</text>
+<text x="88" y="3566" font-size="26" fill="#203449" font-weight="600">Persisted, attempt-scoped recovery budget</text>
+<text x="88" y="3603" font-size="18" fill="#52677c" font-weight="400">Execution transaction lock serializes acceptance and recovery; one deterministic message ID per reminder counter.</text>
+<text x="88" y="3631" font-size="18" fill="#52677c" font-weight="400">Normal idle recovery requires the idle condition; busy work is not inferred complete or failed from silence.</text>
+<text x="88" y="3659" font-size="18" fill="#52677c" font-weight="400">Accepted result stops reminders. Repeated status calls do not reset allowance. Restart/replay retains counters and deadlines.</text>
+<text x="88" y="3687" font-size="18" fill="#52677c" font-weight="400">After the last response interval with an unresolved trigger: persist exhaustion, fence identity, stop session, fail invocation.</text>
+<text x="88" y="3715" font-size="18" fill="#52677c" font-weight="400">Existing workflow retry/block policy applies. No automatic product repair, success inference, or authority escalation.</text>
+<rect x="64" y="3754" width="1672" height="142" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="3778" width="4" height="94" rx="2" fill="#a65b63"/>
+<text x="88" y="3790" font-size="16" fill="#a65b63" font-weight="600">CRITICAL DISTINCTION</text>
+<text x="88" y="3826" font-size="26" fill="#203449" font-weight="600">Incoming delivery is not outgoing retry</text>
+<text x="88" y="3863" font-size="18" fill="#52677c" font-weight="400">Correct invalid content → new operation_id. Uncertain transport → identical payload + same operation_id.</text>
+<text x="88" y="3891" font-size="18" fill="#52677c" font-weight="400">The adapter does not resubmit a rejected result. The model must act on the tool error or controller correction.</text>
+<text x="64" y="3965" font-size="21" fill="#087e83" font-weight="600">07 / PERSISTED STATE AND OBSERVABLE EVIDENCE</text>
+<text x="64" y="4001" font-size="20" fill="#52677c" font-weight="400">PostgreSQL is authoritative; in-memory sockets, wait goroutines and adapter processes are replaceable.</text>
+<rect x="64" y="4032" width="810" height="330" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="4056" width="4" height="282" rx="2" fill="#087e83"/>
+<text x="88" y="4068" font-size="16" fill="#087e83" font-weight="600">FACTORY-OWNED DATABASE SCHEMA</text>
+<text x="88" y="4104" font-size="26" fill="#203449" font-weight="600">Conversation and completion tables</text>
+<text x="88" y="4141" font-size="18" fill="#52677c" font-weight="400">comms_participants → invocation, work, session, result, active.</text>
+<text x="88" y="4169" font-size="18" fill="#52677c" font-weight="400">comms_threads / comms_members → scope, owner, cursor, closure.</text>
+<text x="88" y="4197" font-size="18" fill="#52677c" font-weight="400">comms_messages → sequence, sender, audience, A2A payload.</text>
+<text x="88" y="4225" font-size="18" fill="#52677c" font-weight="400">comms_receipts → participant + operation ID + fingerprint.</text>
+<text x="88" y="4253" font-size="18" fill="#52677c" font-weight="400">comms_requests → formal pending / answered human input.</text>
+<text x="88" y="4281" font-size="18" fill="#52677c" font-weight="400">comms_publications → exact retained file bytes + digests.</text>
+<text x="88" y="4309" font-size="18" fill="#52677c" font-weight="400">comms_completion → runtime state, idle clock, rejection,</text>
+<text x="88" y="4337" font-size="18" fill="#52677c" font-weight="400">  reminder count/deadline, exhausted reason (migration 000005).</text>
+<rect x="926" y="4032" width="810" height="330" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="926" y="4056" width="4" height="282" rx="2" fill="#087e83"/>
+<text x="950" y="4068" font-size="16" fill="#087e83" font-weight="600">MONITOR / CLI STREAM / EXECUTION RECORD</text>
+<text x="950" y="4104" font-size="26" fill="#203449" font-weight="600">Operator projections</text>
+<text x="950" y="4141" font-size="18" fill="#52677c" font-weight="400">Execution activity retains messages, receipts and process output.</text>
+<text x="950" y="4169" font-size="18" fill="#52677c" font-weight="400">Completion rejection and recovery exhaustion are explicit events.</text>
+<text x="950" y="4197" font-size="18" fill="#52677c" font-weight="400">Controller reminders appear as addressed conversation messages.</text>
+<text x="950" y="4225" font-size="18" fill="#52677c" font-weight="400">Operator can inspect status, logs, messages and human decisions.</text>
+<text x="950" y="4253" font-size="18" fill="#52677c" font-weight="400">API result acceptance is separate from engine routing progress.</text>
+<text x="950" y="4281" font-size="18" fill="#52677c" font-weight="400">Delivery acknowledgment ≠ read comprehension ≠ executed work.</text>
+<text x="950" y="4309" font-size="18" fill="#52677c" font-weight="400">File bytes/digests establish revision identity, not product quality.</text>
+<text x="950" y="4337" font-size="18" fill="#52677c" font-weight="400">Raw infrastructure diagnostics stay in controller logs.</text>
+<text x="64" y="4390" font-size="21" fill="#087e83" font-weight="600">08 / VERIFICATION AND OPERATING CONSTRAINTS</text>
+<text x="64" y="4426" font-size="20" fill="#52677c" font-weight="400">Regression tests use private databases, a local MCP server and fake Pi processes. They do not make paid model calls.</text>
+<rect x="64" y="4456" width="1672" height="246" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
+<rect x="64" y="4480" width="4" height="198" rx="2" fill="#087e83"/>
+<text x="88" y="4492" font-size="16" fill="#087e83" font-weight="600">STRING ARTIFACTS → CLASSIFIED REJECTION → CORRECTED RESULT → ONE ACCEPTED HANDOFF</text>
+<text x="88" y="4528" font-size="26" fill="#203449" font-weight="600">The original failure is an explicit regression case</text>
+<text x="88" y="4565" font-size="18" fill="#52677c" font-weight="400">Covered: exact malformed artifact array; strict envelope; required fields; idempotent acceptance; verified outputs.</text>
+<text x="88" y="4593" font-size="18" fill="#52677c" font-weight="400">Covered: persisted corrections; replay/concurrent-supervisor deduplication; restart-safe limits; busy/peer/human exemptions.</text>
+<text x="88" y="4621" font-size="18" fill="#52677c" font-weight="400">Covered: native incoming delivery, ordered lifecycle reports, steering, truncation bounds and visible provider failures.</text>
+<text x="88" y="4649" font-size="18" fill="#52677c" font-weight="400">Limits: models may still ignore messages; unknown peer lifecycle waits conservatively; host runner is not a sandbox.</text>
+<text x="88" y="4677" font-size="18" fill="#52677c" font-weight="400">Deployment: rebuild/install binary and restart the service. Source edits do not update an already running service.</text>
+<text x="64" y="4780" font-size="21" fill="#087e83" font-weight="600">09 / LIVE MESSAGE EXCHANGE — SEQUENCE TRACE</text>
+<text x="64" y="4816" font-size="20" fill="#52677c" font-weight="400">Solid arrows are requests/actions. Dashed arrows return content. Reads use retained cursors; all lanes share one execution scope.</text>
+<rect x="64" y="4850" width="1672" height="1440" rx="16" fill="#fff" stroke="#cedae3"/>
+<text x="115" y="4894" font-size="19" fill="#087e83" font-weight="600">Agent A</text>
+<path d="M180 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<text x="405" y="4894" font-size="19" fill="#087e83" font-weight="600">Adapter A</text>
+<path d="M470 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<text x="695" y="4894" font-size="19" fill="#087e83" font-weight="600">MCP / comms</text>
+<path d="M760 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<text x="985" y="4894" font-size="19" fill="#087e83" font-weight="600">PostgreSQL</text>
+<path d="M1050 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<text x="1275" y="4894" font-size="19" fill="#087e83" font-weight="600">Adapter B</text>
+<path d="M1340 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<text x="1565" y="4894" font-size="19" fill="#087e83" font-weight="600">Agent B</text>
+<path d="M1630 4920 V6234" stroke="#c4d2dd" stroke-dasharray="5 7"/>
+<path d="M180,4960 L760,4960" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="315.85" y="4935" width="308.3" height="23" fill="#fff"/>
+<text x="325.85" y="4952" font-size="16" fill="#203449" font-weight="400">1  list_participants(thread_id)</text>
+<path d="M760,5008 L180,5008" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="274.0" y="4983" width="392.0" height="23" fill="#fff"/>
+<text x="284.0" y="5000" font-size="16" fill="#203449" font-weight="400">IDs, responsibilities, active membership</text>
+<path d="M180,5056 L760,5056" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="297.25" y="5031" width="345.5" height="23" fill="#fff"/>
+<text x="307.25" y="5048" font-size="16" fill="#203449" font-weight="400">2  send_message: publication(files)</text>
+<path d="M760,5104 L1050,5104" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="653.2" y="5079" width="503.6" height="23" fill="#fff"/>
+<text x="663.2" y="5096" font-size="16" fill="#203449" font-weight="400">Verify bytes; retain publication + message + receipt</text>
+<path d="M760,5152 L180,5152" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="292.6" y="5127" width="354.8" height="23" fill="#fff"/>
+<text x="302.6" y="5144" font-size="16" fill="#203449" font-weight="400">publication_id + verified references</text>
+<path d="M180,5200 L760,5200" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="218.2" y="5175" width="503.6" height="23" fill="#fff"/>
+<text x="228.2" y="5192" font-size="16" fill="#203449" font-weight="400">3  send_message to peer: revision + requested review</text>
+<path d="M760,5248 L1050,5248" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="657.85" y="5223" width="494.3" height="23" fill="#fff"/>
+<text x="667.85" y="5240" font-size="16" fill="#203449" font-weight="400">Append audience-scoped message; NOTIFY after commit</text>
+<path d="M1340,5296 L760,5296" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="886.55" y="5271" width="326.90000000000003" height="23" fill="#fff"/>
+<text x="896.55" y="5288" font-size="16" fill="#203449" font-weight="400">4  wait_for_message(after cursor)</text>
+<path d="M760,5344 L1340,5344" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="858.65" y="5319" width="382.70000000000005" height="23" fill="#fff"/>
+<text x="868.65" y="5336" font-size="16" fill="#203449" font-weight="400">Visible retained messages + next cursor</text>
+<path d="M1340,5392 L1630,5392" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="1156.6" y="5367" width="559.4000000000001" height="23" fill="#fff"/>
+<text x="1166.6" y="5384" font-size="16" fill="#203449" font-weight="400">Native queued / steering prompt with exact message content</text>
+<path d="M1340,5440 L760,5440" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="802.85" y="5415" width="494.3" height="23" fill="#fff"/>
+<text x="812.85" y="5432" font-size="16" fill="#203449" font-weight="400">read_messages(ack_through): delivered, not executed</text>
+<path d="M1630,5488 L760,5488" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="943.2" y="5463" width="503.6" height="23" fill="#fff"/>
+<text x="953.2" y="5480" font-size="16" fill="#203449" font-weight="400">5  send_message: concrete review findings to Agent A</text>
+<path d="M760,5536 L470,5536" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="358.54999999999995" y="5511" width="512.9000000000001" height="23" fill="#fff"/>
+<text x="368.54999999999995" y="5528" font-size="16" fill="#203449" font-weight="400">Adapter A reads findings using its independent cursor</text>
+<path d="M470,5584 L180,5584" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="110.39999999999998" y="5559" width="429.20000000000005" height="23" fill="#fff"/>
+<text x="120.39999999999998" y="5576" font-size="16" fill="#203449" font-weight="400">Native input: findings + revision references</text>
+<path d="M180,5632 L760,5632" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="171.7" y="5607" width="596.6" height="23" fill="#fff"/>
+<text x="181.7" y="5624" font-size="16" fill="#203449" font-weight="400">6  send_message: step_result(outcome, summary, publication_id)</text>
+<path d="M760,5680 L1050,5680" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="616.0" y="5655" width="578.0" height="23" fill="#fff"/>
+<text x="626.0" y="5672" font-size="16" fill="#203449" font-weight="400">Validate current revision / outputs; commit result + receipt</text>
+<path d="M760,5728 L180,5728" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="274.0" y="5703" width="392.0" height="23" fill="#fff"/>
+<text x="284.0" y="5720" font-size="16" fill="#203449" font-weight="400">effect.state: accepted; routing: pending</text>
+<path d="M470,5776 L760,5776" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="344.59999999999997" y="5751" width="540.8000000000001" height="23" fill="#fff"/>
+<text x="354.59999999999997" y="5768" font-size="16" fill="#203449" font-weight="400">Adapter observes its worker’s committed terminal message</text>
+<path d="M760,5824 L470,5824" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="312.04999999999995" y="5799" width="605.9000000000001" height="23" fill="#fff"/>
+<text x="322.04999999999995" y="5816" font-size="16" fill="#203449" font-weight="400">Native session can finish; supervisor consumes persisted result</text>
+<path d="M180,5872 L760,5872" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="213.54999999999995" y="5847" width="512.9000000000001" height="23" fill="#fff"/>
+<text x="223.54999999999995" y="5864" font-size="16" fill="#203449" font-weight="400">7  ALTERNATE: malformed result artifacts: [&quot;file.md&quot;]</text>
+<path d="M760,5920 L180,5920" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="190.29999999999995" y="5895" width="559.4000000000001" height="23" fill="#fff"/>
+<text x="200.29999999999995" y="5912" font-size="16" fill="#203449" font-weight="400">invalid_argument: artifact objects expected; no completion</text>
+<path d="M470,5968 L760,5968" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="391.1" y="5943" width="447.8" height="23" fill="#fff"/>
+<text x="401.1" y="5960" font-size="16" fill="#203449" font-weight="400">8  Native agent settles → runtime_status: idle</text>
+<path d="M760,6016 L1050,6016" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="597.4" y="5991" width="615.2" height="23" fill="#fff"/>
+<text x="607.4" y="6008" font-size="16" fill="#203449" font-weight="400">Persist rejection / lifecycle; supervisor checks recovery budget</text>
+<path d="M760,6064 L470,6064" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="316.7" y="6039" width="596.6" height="23" fill="#fff"/>
+<text x="326.7" y="6056" font-size="16" fill="#203449" font-weight="400">Controller correction arrives through normal retained delivery</text>
+<path d="M470,6112 L180,6112" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="84.0" y="6087" width="550.1" height="23" fill="#fff"/>
+<text x="94.0" y="6104" font-size="16" fill="#203449" font-weight="400">9  Wake session: precise repair + complete result example</text>
+<path d="M180,6160 L760,6160" fill="none" stroke="#087e83" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="176.34999999999997" y="6135" width="587.3000000000001" height="23" fill="#fff"/>
+<text x="186.34999999999997" y="6152" font-size="16" fill="#203449" font-weight="400">Corrected handoff, new operation_id; no repeated product work</text>
+<text x="90" y="6244" font-size="17" fill="#52677c" font-weight="400">The control-plane supervisor is outside these native session lanes: it provisions them, consumes accepted results and applies configured routes.</text>
+<text x="64" y="6360" font-size="20" fill="#52677c" font-weight="400">Implementation: docs/communications.md • internal/comms • internal/commandrunner • adapters/pi</text>
+<text x="64" y="6402" font-size="16" fill="#087e83" font-weight="600">PRAGMA / TECHNICAL REFERENCE / 01 NOVEMBER 2026</text>
+</svg>

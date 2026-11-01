@@ -55,7 +55,7 @@ Input documents are copied into the execution's private runtime directory and ha
 
 The local command runner is an integration slice, **not a sandbox**. It rejects requested access grants that it cannot enforce, but a host process launched without grants still has the permissions of the user running Factory. Do not run untrusted packages with it. Package bytes are checked against the digest recorded at execution start; changing an agent package during an execution blocks its next invocation.
 
-Read the [factory.json format](docs/factory-json.md), [execution contract](docs/execution-contract.md), [Hatchet integration and database migrations](docs/hatchet-engine.md), and [session supervisor](docs/session-supervisor.md) for design and current limits. The [sandbox design note](docs/sandbox.md) evaluates a possible future agent runner. The [communication proposal](comms.md) defines thread-based MCP tools and A2A content reuse for agent communication. New evals and their evidence belong under the workspace's [evals directory](../evals/README.md). Run `go test ./...` and `go vet ./...` to check the implementation.
+Read the [factory.json format](docs/factory-json.md), [execution contract](docs/execution-contract.md), [Hatchet integration and database migrations](docs/hatchet-engine.md), and [session supervisor](docs/session-supervisor.md) for design and current limits. The [sandbox design note](docs/sandbox.md) evaluates a possible future agent runner. The [communication contract and detailed diagram](docs/communications.md) describe MCP schemas, completion, delivery, and bounded recovery; [comms.md](comms.md) retains the broader design rationale. New evals and their evidence belong under the workspace's [evals directory](../evals/README.md). Run `go test ./...` and `go vet ./...` to check the implementation.
 
 Monitor visual-review fixtures can be rendered without a service or provider:
 
@@ -76,3 +76,5 @@ The files contain ANSI output from the actual views with fictional fixture data.
 ## Runner integrations and SDKs
 
 [Adapters](adapters/README.md) connect native agent runners to Controls. The [Pi adapter](adapters/pi/README.md) uses the [TypeScript SDK](sdk/typescript/README.md), which also supports non-agent packages such as classifiers. The controller remains runner independent. Install their workspace dependencies with `npm ci` from this checkout; Registry declares local dependencies on these packages.
+
+Execution documents are separate from project source. Configure `factory_dir` (default `.factory`) and use explicit frozen references to pass execution paths to commands. See [execution files and variables](docs/execution-files.md).

@@ -114,6 +114,23 @@ func (s *Service) Call(ctx context.Context, p Participant, name string, raw json
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return nil, fault("invalid_argument", "invalid send payload")
 		}
+		// AddTool advertises schemas but does not validate them automatically.
+		// Preserve precise data errors before checking the full raw envelope.
+		validationErr := validateControlPayload(a.Payload)
+		if validationErr == nil {
+			var value any
+			if json.Unmarshal(raw, &value) != nil || resolvedSendContract.Validate(value) != nil {
+				validationErr = fault("invalid_argument", "send_message arguments must match the advertised envelope schema; correct field names, required values, and content-part shapes")
+			}
+		}
+		if validationErr != nil {
+			if a.Payload.Kind == "step_result" {
+				if err := s.recordRejectedResult(ctx, p, a, validationErr); err != nil {
+					slog.ErrorContext(ctx, "persist completion rejection", "participant", p.ID, "error", err)
+				}
+			}
+			return nil, validationErr
+		}
 		return s.Send(ctx, p, a)
 	case "create_thread":
 		var a Create
@@ -155,7 +172,7 @@ var descriptions = map[string]string{
 	"add_participant":     "Add an existing participant. Requires thread-owner or human/controller authority; does not start an agent.",
 	"remove_participants": "Remove memberships atomically. Requires thread-owner or human/controller authority; does not kill processes.",
 	"list_participants":   "Return {participants:[...]} with participant identities, assignments, and active/removed states. Discover peer and controller IDs here.",
-	"send_message":        "Send addressed or broadcast content. payload has kind, version:1, and A2A 0.3 content parts. Text: {kind:text,text:...}. Structured: {kind:data,data:{...}}. Control kinds: publication (files: project-relative paths), progress, input_request (prompt, options), input_response (request_id, answer), step_result (outcome, summary, publication_id when work was published). Control requests address controller; input requests also address human. Reuse operation_id only for unchanged uncertain retries; correct invalid_argument payloads before resubmitting. A result is complete only when effect.state is accepted. " + resultDataGuidance,
+	"send_message":        "Send addressed or broadcast content. payload has kind, version:1, and A2A 0.3 content parts. Text: {kind:text,text:...}. Structured: {kind:data,data:{...}}. Reserved runtime kind: runtime_status (state: busy or idle, emitted by adapters). Control kinds: publication (files: execution-files-relative paths), progress, input_request (prompt, options), input_response (request_id, answer), step_result (outcome, summary, publication_id when work was published). Control requests address controller; input requests also address human. Reuse operation_id only for unchanged uncertain retries; correct invalid_argument payloads before resubmitting. A result is complete only when effect.state is accepted. " + resultDataGuidance,
 	"read_messages":       "Read all or unread messages without consuming them. after is a returned cursor. ack_through acknowledges a retained batch for yourself only. Returns messages, cursor, more, closed.",
 	"wait_for_message":    "Wait up to 30 seconds for visible messages after a returned cursor. Does not acknowledge them. Timeout returns an empty batch; reconnect using the same cursor.",
 	"close_thread":        "Close a conversation, preserving history. Requires thread-owner or human/controller authority. Does not complete an execution.",
@@ -170,7 +187,7 @@ func stringsProp() map[string]any        { return map[string]any{"type": "array"
 var schemas = map[string]any{
 	"create_thread":       schema([]string{"operation_id", "title", "context", "participants"}, map[string]any{"operation_id": prop("string"), "title": prop("string"), "context": map[string]any{"type": "array", "items": prop("object")}, "participants": stringsProp()}),
 	"list_participants":   schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string")}),
-	"send_message":        schema([]string{"operation_id", "thread_id", "payload"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "recipients": stringsProp(), "in_reply_to": prop("string"), "payload": schema([]string{"kind", "version", "parts"}, map[string]any{"kind": prop("string"), "version": prop("integer"), "parts": map[string]any{"type": "array", "description": resultDataGuidance, "items": prop("object")}})}),
+	"send_message":        schema([]string{"operation_id", "thread_id", "payload"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "recipients": stringsProp(), "in_reply_to": prop("string"), "payload": payloadSchema()}),
 	"read_messages":       schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string"), "mode": prop("string"), "after": prop("string"), "limit": prop("integer"), "ack_through": prop("string")}),
 	"wait_for_message":    schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string"), "after": prop("string"), "limit": prop("integer"), "wait_seconds": prop("integer")}),
 	"add_participant":     schema([]string{"operation_id", "thread_id", "participant_id"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "participant_id": prop("string")}),

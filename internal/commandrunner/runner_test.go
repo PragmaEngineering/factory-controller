@@ -3,6 +3,7 @@ package commandrunner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,7 @@ type testCommunication struct {
 	connection comms.Connection
 	result     *execution.StepResult
 	ended      bool
+	recover    func() error
 }
 
 func (c *testCommunication) Provision(context.Context, execution.Work) (comms.Connection, error) {
@@ -30,12 +32,20 @@ func (c *testCommunication) BindSession(context.Context, string, string) error {
 func (c *testCommunication) Result(context.Context, string) (*execution.StepResult, error) {
 	return c.result, nil
 }
+func (c *testCommunication) Recover(context.Context, string) error {
+	if c.recover != nil {
+		return c.recover()
+	}
+	return nil
+}
 func (c *testCommunication) End(context.Context, string) error { c.ended = true; return nil }
 
 type testSessionHost struct {
 	launch func(sessions.Launch)
 	calls  int
 	output string
+	get    func() (sessions.Session, error)
+	stops  int
 }
 
 func (h *testSessionHost) Launch(args sessions.Launch) (sessions.Session, error) {
@@ -43,10 +53,13 @@ func (h *testSessionHost) Launch(args sessions.Launch) (sessions.Session, error)
 	h.launch(args)
 	return sessions.Session{ID: "session", State: sessions.Exited}, nil
 }
-func (*testSessionHost) Get(string) (sessions.Session, error) {
+func (h *testSessionHost) Get(string) (sessions.Session, error) {
+	if h.get != nil {
+		return h.get()
+	}
 	return sessions.Session{State: sessions.Exited}, nil
 }
-func (*testSessionHost) Stop(string) error                         { return nil }
+func (h *testSessionHost) Stop(string) error                       { h.stops++; return nil }
 func (*testSessionHost) ReportBudget(string, string, string) error { return nil }
 func (h *testSessionHost) Output(string, int64, int) (sessions.Output, error) {
 	if h.output != "" {
@@ -125,7 +138,12 @@ func TestPromptIncludesReviewerArtifactsForNextRound(t *testing.T) {
 			Outcome: "changes_requested", Summary: "Handle empty input",
 			Artifacts: []execution.Artifact{{Name: "reviews/code.md", URI: "/project/reviews/code.md", Digest: "abc"}},
 		}}},
-	}, "/runtime/result.json")
+	}, "assigned-thread")
+	require.Contains(t, prompt, `"thread_id": "assigned-thread"`)
+	require.Contains(t, prompt, `"kind": "step_result"`)
+	require.Contains(t, prompt, `"outcome": "done"`)
+	require.Contains(t, prompt, "effect.state=accepted")
+	require.Contains(t, prompt, "not retried by automatic incoming-message delivery")
 	if !strings.Contains(prompt, "review visit 2: changes_requested") || !strings.Contains(prompt, "reviews/code.md: /project/reviews/code.md (sha256 abc)") {
 		t.Fatalf("review findings missing from next-round prompt: %s", prompt)
 	}
@@ -166,4 +184,16 @@ func TestBoundJSONAndPackageSettingsReachTheWorker(t *testing.T) {
 	}}
 	_, err := (Runner{Sessions: host, Recorder: testRecorder{}, Comms: communication, Root: t.TempDir()}).Run(context.Background(), work)
 	require.NoError(t, err)
+}
+
+func TestCompletionRecoveryExhaustionStopsTheSession(t *testing.T) {
+	work := fixture(t)
+	communication := &testCommunication{connection: comms.Connection{New: true, ThreadID: "thread", ParticipantID: "participant"}, recover: func() error {
+		return fmt.Errorf("completion recovery exhausted: no accepted result after 2 controller reminders")
+	}}
+	host := &testSessionHost{launch: func(sessions.Launch) {}, get: func() (sessions.Session, error) { return sessions.Session{State: sessions.Running}, nil }}
+	_, err := (Runner{Sessions: host, Recorder: testRecorder{}, Comms: communication, Root: t.TempDir()}).Run(context.Background(), work)
+	require.ErrorContains(t, err, "completion recovery exhausted")
+	require.Equal(t, 1, host.stops)
+	require.True(t, communication.ended)
 }
