@@ -20,13 +20,14 @@ A runnable package can be a coding agent, a script or a decision-model classifie
     {
       "name": "architect",
       "path": "../registry/agents/architect",
-      "entrypoint": "start.sh"
+      "entrypoint": "start.sh",
+      "runtime": {"name":"pi","version":"=1.0.3"}
     }
   ]
 }
 ```
 
-This is a configuration fragment. Paths resolve from `factory.json`, and every package starts with that file's directory as its working directory. `entrypoint` selects a file in the package; optional `args` are literal arguments except `{prompt}`, which substitutes the generated assignment. The package directory digest and `with` settings participate in the pinned execution configuration. Secret values belong in the service environment, never `with`.
+This is a configuration fragment. Paths resolve from `factory.json`, and every package starts with that file's directory as its working directory. `entrypoint` selects a file in the package; optional `args` are literal arguments except `{prompt}`, which substitutes the generated assignment. The package directory digest, `with` settings and optional `runtime` requirement participate in the pinned execution configuration. Secret values belong in the service environment, never `with`.
 
 `with` is a JSON object interpreted by the package. Factory does not merge it into Pi profiles or expand environment references. The classifier example reads `api_key_env` as an environment-variable **name**; another package may implement a different configuration schema. Packages should reject unsupported settings. No global provider/model default is introduced.
 
@@ -98,3 +99,7 @@ An LLM receiving the evaluation pair gets the original task, exact evaluated que
 ## Registry example
 
 See [task readiness](../../registry/classifiers/task-readiness/README.md) and the [Go coding factory](../../registry/factories/golang/README.md). The classification bundle currently uses the OpenRouter Decisions protocol. Controls remains provider-agnostic.
+
+## Native runtime selection
+
+A package can declare `runtime: {"name":"pi","version":"=1.0.3"}`; optional `executable` selects the installed native program. Omitting it selects an opaque command package with no advertised agent capabilities. Concurrent peer stages require an explicitly capable adapter. The command host and native runtime are recorded separately. Pi copies native defaults but rejects nonempty `with` until CTRL-005. Other packages continue to interpret their own `with` JSON. See [Adding an agent runtime](runtime-adapters.md) for configuration, lifecycle ownership, capabilities and conformance tests.

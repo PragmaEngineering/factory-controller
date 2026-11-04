@@ -28,17 +28,17 @@ cd hello-go
 
 Run Factory from this project root. Commands initially start beside `factory.json`; source work stays in the launcher-selected workspace. Workflow documents and review evidence go to `.factory/executions/<execution-id>/files/`. When using Git, add `.factory/` to `.gitignore`.
 
-Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent.
+Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent. `runtime` explicitly selects the Pi adapter and pins its tested 1.0.3 version requirement; install that version on the execution host. Controls prepares a private native profile, while each entrypoint retains its workspace and role/skill setup. Factory-level provider/model overrides are not implemented yet; use the agent bundle’s native defaults. See [runtime setup and capabilities](docs/runtime-adapters.md).
 
 ```json
 {
   "name": "golang",
   "factory_dir": ".factory",
   "agents": [
-    {"name": "architect", "path": "../registry/agents/architect", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]},
-    {"name": "architecture_reviewer", "path": "../registry/agents/architecture_reviewer", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]},
-    {"name": "coder_golang", "path": "../registry/agents/coder_golang", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]},
-    {"name": "code_reviewer_golang", "path": "../registry/agents/code_reviewer_golang", "entrypoint": "start.sh", "args": ["-p", "{prompt}"]}
+    {"name": "architect", "path": "../registry/agents/architect", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
+    {"name": "architecture_reviewer", "path": "../registry/agents/architecture_reviewer", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
+    {"name": "coder_golang", "path": "../registry/agents/coder_golang", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
+    {"name": "code_reviewer_golang", "path": "../registry/agents/code_reviewer_golang", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]}
   ],
   "workflow": {
     "start": "specification",

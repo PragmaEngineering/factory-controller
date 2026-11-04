@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"controls/adapters"
 	"controls/execution"
 
 	"controls/internal/comms"
@@ -42,6 +43,7 @@ type Communication interface {
 }
 
 type Runner struct {
+	Adapters adapters.Registry
 	Hooks    execution.HookRunner
 	Comms    Communication
 	Sessions SessionHost
@@ -78,6 +80,14 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 		defer cancel()
 		_ = r.Comms.End(cleanup, connection.ParticipantID)
 	}()
+	registry := r.Adapters
+	if registry == nil {
+		registry = adapters.Registry{"command": adapters.Command{}}
+	}
+	adapter, err := registry.Select(work.Package.Runtime, len(work.Peers) > 1)
+	if err != nil {
+		return execution.StepResult{}, err
+	}
 	if err = packagehash.Verify(work.Package); err != nil {
 		return execution.StepResult{}, err
 	}
@@ -140,14 +150,36 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 		for _, arg := range profile.Args {
 			command = append(command, strings.ReplaceAll(arg, "{prompt}", prompt))
 		}
-		session, err := r.Sessions.Launch(sessions.Launch{ExecutionID: work.ExecutionID, StepID: stepID, Visit: work.Visit, Try: work.Try, Name: work.Package.Name, Runner: work.Package.Runner, Directory: work.Project, Command: command, InputMode: "pty", Environment: map[string]string{
+		prepared, err := adapter.Prepare(ctx, adapters.Request{
+			Package: work.Package, Command: command, Project: work.Project,
+			InvocationDir: directory, FilesDir: work.ArtifactDirectory(),
+			PromptPath: promptPath, InputsPath: inputsPath, ConfigPath: configPath,
+			ExecutionID: work.ExecutionID, StepID: work.Step.ID, Visit: work.Visit, Try: work.Try,
+		})
+		if err != nil {
+			return execution.StepResult{}, fmt.Errorf("prepare runtime: %w", err)
+		}
+		environment := map[string]string{
 			"FACTORY_AGENT_RUNTIME_DIR": filepath.Join(directory, "profiles"),
 			"FACTORY_INPUTS_PATH":       inputsPath,
 			"FACTORY_PACKAGE_CONFIG":    configPath,
 			"FACTORY_INVOCATION_DIR":    directory,
 			"FACTORY_COMMS_SKILL":       skillDirectory,
+			"FACTORY_RUNTIME_NAME":      prepared.Runtime.Name,
 			"FACTORY_MCP_URL":           connection.URL, "FACTORY_MCP_TOKEN": connection.Token, "FACTORY_PARTICIPANT_ID": connection.ParticipantID, "FACTORY_THREAD_ID": connection.ThreadID, "FACTORY_PROMPT_PATH": promptPath, "FACTORY_EXECUTION_ID": work.ExecutionID, "FACTORY_STEP_ID": stepID,
-		}})
+		}
+		for name, value := range prepared.Environment {
+			if _, reserved := environment[name]; reserved {
+				return execution.StepResult{}, fmt.Errorf("adapter cannot replace invocation environment %q", name)
+			}
+			environment[name] = value
+		}
+		session, err := r.Sessions.Launch(sessions.Launch{
+			ExecutionID: work.ExecutionID, StepID: stepID, Visit: work.Visit, Try: work.Try,
+			Name: work.Package.Name, Runner: work.Package.Runner, Runtime: &prepared.Runtime,
+			Directory: work.Project, Command: prepared.Command, InputMode: prepared.InputMode,
+			Environment: environment,
+		})
 		if err != nil {
 			return execution.StepResult{}, err
 		}

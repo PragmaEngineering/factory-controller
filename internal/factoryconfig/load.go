@@ -52,6 +52,7 @@ type Human struct {
 
 // Package selects an independently runnable bundle. With is interpreted by that bundle.
 type Package struct {
+	Runtime    *execution.NativeRuntime   `json:"runtime,omitempty"`
 	With       map[string]json.RawMessage `json:"with,omitempty"`
 	Name       string                     `json:"name"`
 	Path       string                     `json:"path"`
@@ -205,6 +206,13 @@ func load(path, executionID string) (Resolved, error) {
 		if info, err := os.Stat(entrypoint); err != nil || info.IsDir() {
 			return Resolved{}, fmt.Errorf("%s: package %q entrypoint %s is unavailable", abs, pkg.Name, entrypoint)
 		}
+		if pkg.Runtime != nil && pkg.Runtime.Executable != "" {
+			runtime := *pkg.Runtime
+			if !filepath.IsAbs(runtime.Executable) && strings.ContainsAny(runtime.Executable, `/\`) {
+				runtime.Executable = filepath.Join(filepath.Dir(abs), runtime.Executable)
+			}
+			pkg.Runtime = &runtime
+		}
 		pkg.Path = root
 		registered[pkg.Name] = pkg
 		settings, _ := json.Marshal(struct {
@@ -224,7 +232,7 @@ func load(path, executionID string) (Resolved, error) {
 			return Resolved{}, fmt.Errorf("hash package %q: %w", pkg.Name, err)
 		}
 		config.Packages = append(config.Packages, execution.PackageSnapshot{
-			ExcludedPaths: excluded, Name: pkg.Name, Source: root, Digest: digest, Runner: "command", Settings: settings,
+			ExcludedPaths: excluded, Name: pkg.Name, Source: root, Digest: digest, Runner: "command", Runtime: pkg.Runtime, Settings: settings,
 		})
 	}
 	for _, step := range steps {

@@ -4,6 +4,10 @@
 
 ![Communication server, MCP, agent sessions, persistence, and recovery](images/communications.svg)
 
+See [native preparation and ownership](runtime-adapters.md) and the [runtime-boundary diagram](images/runtime-adapters.svg) for the launch path. The detailed communication diagram below describes protocol behavior; it does not imply every runner supports native idle/usage observations.
+
+**Known limitation — CTRL-001:** controller-only lifecycle routing is the intended contract. The current Pi bridge still broadcasts lifecycle reports; this defect is not fixed by runtime preparation. Ordinary correspondence and native lifecycle observations must remain distinct.
+
 ## Boundaries
 
 | Component | Responsibility |
@@ -11,7 +15,8 @@
 | Control plane / workflow adapter | Pin assignments, provision invocation identities, supervise processes, consume accepted results, apply configured routes and human authority. |
 | Communication service | Authenticate and authorize calls; validate typed content; persist threads, messages, receipts, publications, requests, results and completion-recovery state. |
 | MCP | Expose eight tools over authenticated Streamable HTTP. Tool discovery advertises the envelope and reserved payload schemas. No separate completion tool. |
-| Runtime adapter | Configure the native runner, deliver incoming thread messages, report actual busy/idle transitions and retain native output. It does not choose workflow outcomes. |
+| Native preparer / session bridge | Adapter preparation validates compatibility and generates native launch settings. The native bridge owns scoped MCP injection and native message delivery; lifecycle/telemetry depend on adapter capabilities. Neither chooses workflow routes. |
+| Host supervisor | Launch prepared commands, retain output and native identity, and terminate/wait for sessions. It does not interpret Pi configuration. |
 | Agent or deterministic package | Perform the assignment, communicate concrete progress/questions/revisions, and submit a valid terminal result. |
 | Database | Authoritative durable state. Notifications wake readers; a notification is neither a message nor an acknowledgment. |
 

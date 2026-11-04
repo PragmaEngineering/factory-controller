@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"controls/adapters"
+	"controls/adapters/pi"
 	"controls/hatchetengine"
 	"controls/internal/artifacts"
 	"controls/internal/commandrunner"
@@ -69,7 +71,7 @@ func Serve(ctx context.Context, root string) error {
 		}
 		go func() { <-serviceContext.Done(); stopComms() }()
 		controller := &control.Controller{Store: store, Sessions: manager, Root: root, Comms: communication}
-		runner := commandrunner.Runner{Hooks: hooks.Runner{Recorder: store, Sessions: manager}, Sessions: manager, Recorder: store, Root: root, Comms: communication}
+		runner := commandrunner.Runner{Adapters: adapters.Registry{"command": adapters.Command{}, "pi": pi.Adapter{}}, Hooks: hooks.Runner{Recorder: store, Sessions: manager}, Sessions: manager, Recorder: store, Root: root, Comms: communication}
 		engine, err := hatchetengine.New(client, runner, control.ProgressObserver{Store: store, Sessions: manager, Comms: communication})
 		if err != nil {
 			return nil, err

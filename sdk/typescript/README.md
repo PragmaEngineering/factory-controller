@@ -24,6 +24,8 @@ import { connect, withController } from '@pragma/controls-sdk/result-client';
 
 The environment must include `FACTORY_THREAD_ID` and `FACTORY_PARTICIPANT_ID` in addition to the connection variables. Controls provisions these for managed invocations. Never include the token in prompts or result data.
 
-The [Pi adapter](../../adapters/pi/README.md) uses `connect`. Registry's task-readiness classifier uses `withController`. The [communication contract](../../comms.md) defines the tool payloads and controller behavior.
+The [Pi adapter](../../adapters/pi/README.md) uses `connect`. Registry's task-readiness classifier uses `withController`. The [communication contract](../../docs/communications.md) defines the tool payloads and controller behavior.
 
 The [interoperability fixture](fixtures/mcp-client.mjs) exercises the official MCP client against the Go server without a model.
+
+Runtime configuration preparation is separate from this SDK. See [Adding an agent runtime](../../docs/runtime-adapters.md) for adapter selection, capabilities, version checks and the native launch boundary.

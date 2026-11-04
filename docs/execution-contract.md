@@ -89,3 +89,7 @@ Execution documents are separate from project source. Configure `factory_dir` (d
 ## Communication and completion recovery
 
 The [communication contract](communications.md) defines typed MCP envelopes, accepted step results, runtime lifecycle observations, and bounded controller recovery. A rejected result never advances a step. Recovery exhaustion fails the invocation and uses the existing retry/block policy; it does not choose a replacement outcome. See the [detailed interaction diagram](images/communications.svg).
+
+## Native runtime boundary
+
+The implemented [runtime adapter contract](runtime-adapters.md) separates native runner selection/preparation from the command host and workflow scheduler. Native compatibility requirements are pinned with the package, and actual native identity/capabilities are recorded on launched sessions. This does not supply sandboxing or upgrade packages on retry.

@@ -38,6 +38,9 @@ func Validate(config Configuration) error {
 	}
 	packages := make(map[string]struct{}, len(config.Packages))
 	for _, pkg := range config.Packages {
+		if err := pkg.Runtime.Validate(); err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
 		if pkg.Name == "" || pkg.Digest == "" || pkg.Runner == "" {
 			return fmt.Errorf("package %q requires name, digest, and runner", pkg.Name)
 		}

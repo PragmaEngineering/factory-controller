@@ -3,6 +3,7 @@ module controls
 go 1.26.10
 
 require (
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/a2aproject/a2a-go v0.3.15
 	github.com/creack/pty v1.1.24
 	github.com/fergusstrange/embedded-postgres v1.34.0
@@ -24,7 +25,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	connectrpc.com/connect v1.21.0 // indirect
-	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect

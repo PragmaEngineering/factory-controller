@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -33,4 +34,27 @@ func TestPackagesPinOverridesAndResolveBindings(t *testing.T) {
 	changed, err := Load(path)
 	require.NoError(t, err)
 	require.NotEqual(t, resolved.Digest, changed.Digest)
+}
+
+func TestRuntimeRequirementIsValidatedAndPinned(t *testing.T) {
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
+	config := `{"name":"native","packages":[{"name":"role","path":".","entrypoint":"start.sh","runtime":{"name":"pi","version":"=1.0.3","executable":"./tools/pi"}}],"workflow":{"start":"work","steps":[{"name":"work","type":"run","package":"role","on":{"done":"$done"}}]}}`
+	file := filepath.Join(project, "factory.json")
+	require.NoError(t, os.WriteFile(file, []byte(config), 0600))
+	first, err := Load(file)
+	require.NoError(t, err)
+	require.Equal(t, "command", first.Configuration.Packages[0].Runner)
+	require.Equal(t, "pi", first.Configuration.Packages[0].Runtime.Name)
+	require.Equal(t, filepath.Join(project, "tools", "pi"), first.Configuration.Packages[0].Runtime.Executable)
+	require.Equal(t, "=1.0.3", first.Configuration.Packages[0].Runtime.Version)
+	changed := strings.Replace(config, "=1.0.3", ">=1.0.3 <2.0.0", 1)
+	require.NoError(t, os.WriteFile(file, []byte(changed), 0600))
+	second, err := Load(file)
+	require.NoError(t, err)
+	require.NotEqual(t, first.Digest, second.Digest)
+	invalid := strings.Replace(config, "=1.0.3", "invalid", 1)
+	require.NoError(t, os.WriteFile(file, []byte(invalid), 0600))
+	_, err = Load(file)
+	require.ErrorContains(t, err, "runtime.version")
 }

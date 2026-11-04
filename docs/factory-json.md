@@ -10,6 +10,7 @@
       "name": "builder",
       "path": "./agents/builder",
       "entrypoint": "start.sh",
+      "runtime": {"name":"pi","version":"=1.0.3"},
       "args": [
         "{prompt}"
       ]
@@ -18,6 +19,7 @@
       "name": "reviewer",
       "path": "./agents/reviewer",
       "entrypoint": "start.sh",
+      "runtime": {"name":"pi","version":"=1.0.3"},
       "args": [
         "{prompt}"
       ]
@@ -87,7 +89,7 @@
 
 The accepted top-level fields are `name`, `packages`, `workflow`, and optional `hooks`. `agents` remains accepted as registration shorthand. A package has `name`, `path`, `entrypoint`, optional `args`, and optional `with`. The workflow has `start`, optional `stages`, and `steps` for steps outside loops. A stage has `name`, `loop`, and optional `human`; `loop` has `limit` and `steps`. A step has `name`, `type`, optional `package`, `input_bindings`, `title`, `instructions`, `inputs`, `outputs`, `outputs_on`, `artifacts`, `actor`, and `on`. Step names must be unique across all nested and top-level steps. Factory assigns separate runtime IDs to executions and step visits; use the runtime step ID shown by `factory EXECUTION-ID` for `factory retry STEP-ID`. The execution-contract document describes future policies such as per-step automatic retry and access grants, but `factory.json` does not accept those fields yet. Manual retry is available after a blocked attempt.
 
-A package entrypoint starts beside factory.json. Its `args` support the explicit [execution and variable references](execution-files.md#references); `{prompt}` is separately replaced with the assignment. It receives `FACTORY_PROMPT_PATH`, `FACTORY_EXECUTION_ID`, `FACTORY_STEP_ID`, a scoped MCP endpoint/credential (`FACTORY_MCP_URL`, `FACTORY_MCP_TOKEN`), `FACTORY_THREAD_ID`, `FACTORY_PARTICIPANT_ID`, and `FACTORY_COMMS_SKILL`. The runtime configures these automatically; credentials must never enter prompts or logs. The prompt identifies prior results and artifacts. The agent sends a `step_result` through MCP `send_message` with a configured outcome and factual summary, and waits for `effect.state: accepted`. Factory fills actor/time and verifies applicable output files. Process exit or idle output does not mean completion. See [communication tools and payloads](../comms.md).
+A package entrypoint starts beside factory.json. Its `args` support the explicit [execution and variable references](execution-files.md#references); `{prompt}` is separately replaced with the assignment. It receives `FACTORY_PROMPT_PATH`, `FACTORY_EXECUTION_ID`, `FACTORY_STEP_ID`, a scoped MCP endpoint/credential (`FACTORY_MCP_URL`, `FACTORY_MCP_TOKEN`), `FACTORY_THREAD_ID`, `FACTORY_PARTICIPANT_ID`, and `FACTORY_COMMS_SKILL`. The runtime configures these automatically; credentials must never enter prompts or logs. The prompt identifies prior results and artifacts. The agent sends a `step_result` through MCP `send_message` with a configured outcome and factual summary, and waits for `effect.state: accepted`. Factory fills actor/time and verifies applicable output files. Process exit or idle output does not mean completion. See [communication tools and payloads](communications.md).
 
 The local command runner launches packages as host processes, so it cannot enforce file, network, tool, MCP, or secret grants. It rejects nonempty access profiles. The controller currently does not parse access profiles from `factory.json`, so current packages inherit the host user's permissions. Use only trusted packages until an isolated runner exists.
 
@@ -133,3 +135,7 @@ See [packages and explicit inputs](packages.md) for `with`, named JSON outputs, 
 `factory_dir` defaults to `.factory` beside factory.json. Each execution receives its own persistent `executions/<id>/files/` directory for documents and evidence. It is separate from project source and from service-private runtime state. Root `variables` declares strings available through explicit references in package paths/arguments and lifecycle commands. Read [execution files and variable semantics](execution-files.md) for resolution, examples, security boundaries and retention.
 
 The root example includes optional Registry Git hooks and assumes its placeholder builder/reviewer entrypoints accept `--workspace DIRECTORY`. Adapt those arguments to the actual bundle interface; remove the Git hooks and workspace argument for a non-Git factory.
+
+## Native agent runtimes
+
+Package/agent registrations accept optional `runtime` with `name` (adapter selection), `version` (semantic-version constraint) and `executable` (installed native program). For example: `"runtime": {"name":"pi","version":"=1.0.3"}`. Executable paths containing a separator resolve from the factory file; bare names resolve on the service PATH. The requirement is pinned; the detected version and resolved executable are recorded per launched session. Native runtime identity is separate from `runner: "command"`, the local host mechanism. Unknown adapters, incompatible versions and unsupported concurrent capabilities fail before package launch. Absent `runtime` does not infer Pi from package files. See [Adding an agent runtime](runtime-adapters.md) for supported capabilities, validation phases and integration instructions.

@@ -10,7 +10,7 @@
 <text x="60" y="168" font-size="52" fill="#203449" font-weight="600">Communication, without implicit completion</text>
 <text x="64" y="211" font-size="24" fill="#52677c" font-weight="400">Typed messages • durable conversations • native session delivery • bounded protocol recovery</text>
 <text x="64" y="278" font-size="21" fill="#087e83" font-weight="600">01 / EXECUTION AND TRUST BOUNDARIES</text>
-<text x="64" y="314" font-size="20" fill="#52677c" font-weight="400">The control plane owns policy; the communication service owns durable messaging; adapters own native runner behavior.</text>
+<text x="64" y="314" font-size="20" fill="#52677c" font-weight="400">Policy: control plane. Messaging: communication service. Native preparation/delivery: adapters. Processes: supervisor.</text>
 <rect x="64" y="344" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
 <rect x="64" y="368" width="4" height="222" rx="2" fill="#087e83"/>
 <text x="88" y="380" font-size="16" fill="#087e83" font-weight="600">POLICY / GO</text>
@@ -31,13 +31,13 @@
 <text x="664" y="565" font-size="18" fill="#52677c" font-weight="400">Persists recovery state; sends corrections.</text>
 <rect x="1216" y="344" width="520" height="270" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
 <rect x="1216" y="368" width="4" height="222" rx="2" fill="#087e83"/>
-<text x="1240" y="380" font-size="16" fill="#087e83" font-weight="600">RUNNER / PI RPC OR ANOTHER NATIVE API</text>
+<text x="1240" y="380" font-size="16" fill="#087e83" font-weight="600">NATIVE PREPARATION / SESSION BRIDGE</text>
 <text x="1240" y="416" font-size="26" fill="#203449" font-weight="600">Runtime adapter → agent</text>
-<text x="1240" y="453" font-size="18" fill="#52677c" font-weight="400">Private profile, scoped MCP connection + skill.</text>
-<text x="1240" y="481" font-size="18" fill="#52677c" font-weight="400">Passes assignment to the native agent.</text>
-<text x="1240" y="509" font-size="18" fill="#52677c" font-weight="400">Delivers peer/controller messages to session.</text>
-<text x="1240" y="537" font-size="18" fill="#52677c" font-weight="400">Reports actual busy / idle transitions.</text>
-<text x="1240" y="565" font-size="18" fill="#52677c" font-weight="400">Agent performs work and submits its result.</text>
+<text x="1240" y="453" font-size="18" fill="#52677c" font-weight="400">Go: version check + private native profile.</text>
+<text x="1240" y="481" font-size="18" fill="#52677c" font-weight="400">Entrypoint: workspace + role/skill setup.</text>
+<text x="1240" y="509" font-size="18" fill="#52677c" font-weight="400">Bridge: MCP injection + native delivery.</text>
+<text x="1240" y="537" font-size="18" fill="#52677c" font-weight="400">Lifecycle/usage depend on capabilities.</text>
+<text x="1240" y="565" font-size="18" fill="#52677c" font-weight="400">Supervised worker; accepted MCP result.</text>
 <path d="M584,460 L640,460" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
 <path d="M1160,460 L1216,460" fill="none" stroke="#657b90" stroke-width="2.5" marker-end="url(#arrow)"/>
 <rect x="64" y="650" width="810" height="220" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
@@ -235,7 +235,7 @@
 <text x="950" y="4309" font-size="18" fill="#52677c" font-weight="400">File bytes/digests establish revision identity, not product quality.</text>
 <text x="950" y="4337" font-size="18" fill="#52677c" font-weight="400">Raw infrastructure diagnostics stay in controller logs.</text>
 <text x="64" y="4390" font-size="21" fill="#087e83" font-weight="600">08 / VERIFICATION AND OPERATING CONSTRAINTS</text>
-<text x="64" y="4426" font-size="20" fill="#52677c" font-weight="400">Regression tests use private databases, a local MCP server and fake Pi processes. They do not make paid model calls.</text>
+<text x="64" y="4426" font-size="20" fill="#52677c" font-weight="400">Tests use private databases/MCP, fake Pi and an independent Go worker. No paid model calls.</text>
 <rect x="64" y="4456" width="1672" height="246" rx="16" fill="#fff" stroke="#cedae3" filter="url(#shadow)"/>
 <rect x="64" y="4480" width="4" height="198" rx="2" fill="#087e83"/>
 <text x="88" y="4492" font-size="16" fill="#087e83" font-weight="600">STRING ARTIFACTS → CLASSIFIED REJECTION → CORRECTED RESULT → ONE ACCEPTED HANDOFF</text>
@@ -243,7 +243,7 @@
 <text x="88" y="4565" font-size="18" fill="#52677c" font-weight="400">Covered: exact malformed artifact array; strict envelope; required fields; idempotent acceptance; verified outputs.</text>
 <text x="88" y="4593" font-size="18" fill="#52677c" font-weight="400">Covered: persisted corrections; replay/concurrent-supervisor deduplication; restart-safe limits; busy/peer/human exemptions.</text>
 <text x="88" y="4621" font-size="18" fill="#52677c" font-weight="400">Covered: native incoming delivery, ordered lifecycle reports, steering, truncation bounds and visible provider failures.</text>
-<text x="88" y="4649" font-size="18" fill="#52677c" font-weight="400">Limits: models may still ignore messages; unknown peer lifecycle waits conservatively; host runner is not a sandbox.</text>
+<text x="88" y="4649" font-size="18" fill="#52677c" font-weight="400">Limits: CTRL-001 lifecycle routing open; unknown lifecycle is not idle; host processes are not sandboxed.</text>
 <text x="88" y="4677" font-size="18" fill="#52677c" font-weight="400">Deployment: rebuild/install binary and restart the service. Source edits do not update an already running service.</text>
 <text x="64" y="4780" font-size="21" fill="#087e83" font-weight="600">09 / LIVE MESSAGE EXCHANGE — SEQUENCE TRACE</text>
 <text x="64" y="4816" font-size="20" fill="#52677c" font-weight="400">Solid arrows are requests/actions. Dashed arrows return content. Reads use retained cursors; all lanes share one execution scope.</text>

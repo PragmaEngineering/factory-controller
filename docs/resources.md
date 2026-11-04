@@ -1,6 +1,8 @@
 # Live resources and step budgets
 
-Factory projects resource events emitted by a runner adapter. It does not infer usage from prose, output length, or provider-specific log records. The Pi RPC adapter in Registry emits this protocol; other runners can implement the same contract.
+Factory projects resource events emitted by a runner adapter. It does not infer usage from prose, output length, or provider-specific log records. The [Pi RPC adapter in Controls](../adapters/pi/README.md) emits this protocol; other runners can implement the same contract.
+
+Native runner identity is separate from the host command mechanism. Session JSON includes the selected adapter, detected native version, executable and declared capabilities when prepared through that adapter. See [runtime capabilities](runtime-adapters.md#capability-matrix). Capability flags describe integration support, not a guarantee that a provider returns complete usage. Missing observations remain unknown; do not infer zero usage, live activity or readiness from a capability flag.
 
 ## Inspect an execution
 

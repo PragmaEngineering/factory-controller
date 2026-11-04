@@ -1,6 +1,6 @@
 # Implementation reference
 
-See [Communication and completion](docs/communications.md) for the implemented schemas, explicit completion example, persisted recovery policy, runner requirements, and [detailed interaction diagram](docs/images/communications.svg). The design discussion below includes future considerations; the implementation reference describes current behavior.
+See [Communication and completion](docs/communications.md) for the implemented schemas, explicit completion example, persisted recovery policy, runner requirements, and [detailed interaction diagram](docs/images/communications.svg). The design discussion below includes future considerations; the implementation reference describes current behavior. Native preparation, runner identity and capability support are defined in [Adding an agent runtime](docs/runtime-adapters.md). CTRL-001’s Pi lifecycle broadcast defect remains open; controller-only routing described here is the intended contract.
 
 # Agent communication with the control plane
 

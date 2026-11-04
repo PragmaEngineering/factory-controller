@@ -130,7 +130,7 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	}
 	record := Session{ID: id, ParentID: request.ParentID, ExecutionID: request.ExecutionID,
 		StepID: request.StepID, Visit: request.Visit, Try: request.Try,
-		Name: request.Name, Runner: request.Runner, InputMode: request.InputMode,
+		Name: request.Name, Runner: request.Runner, Runtime: request.Runtime, InputMode: request.InputMode,
 		Owner: m.owner, State: Running, PID: command.Process.Pid, StartedAt: time.Now().UTC()}
 	if err := m.db.CreateTogether(context.Background(),
 		state.Record{Kind: "session", ID: id, Value: record},

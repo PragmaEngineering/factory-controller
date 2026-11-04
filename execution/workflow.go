@@ -71,6 +71,7 @@ type Configuration struct {
 // PackageSnapshot records the package and effective settings selected for a
 // run step. The runner interprets Settings; the controller pins its bytes.
 type PackageSnapshot struct {
+	Runtime       *NativeRuntime  `json:"runtime,omitempty"`
 	ExcludedPaths []string        `json:"excluded_paths,omitempty"`
 	Name          string          `json:"name"`
 	Source        string          `json:"source"`

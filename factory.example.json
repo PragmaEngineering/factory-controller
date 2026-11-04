@@ -15,7 +15,11 @@
         "--workspace",
         "${variables.workspace}",
         "{prompt}"
-      ]
+      ],
+      "runtime": {
+        "name": "pi",
+        "version": "=1.0.3"
+      }
     },
     {
       "name": "reviewer",
@@ -25,7 +29,11 @@
         "--workspace",
         "${variables.workspace}",
         "{prompt}"
-      ]
+      ],
+      "runtime": {
+        "name": "pi",
+        "version": "=1.0.3"
+      }
     }
   ],
   "workflow": {

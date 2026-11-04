@@ -17,13 +17,13 @@ npm ci --prefix /path/to/controls
 
 This is separate from `./install.sh`, which builds and installs only the Go binary. The Pi adapter requires Node.js 22+ and an installed Pi executable. Registry consumers also need their [local package dependencies installed](../../registry/README.md#controls-dependencies); the default dependency paths assume sibling Controls and Registry checkouts.
 
-Each agent owns its native Pi profile, provider/model, tools, and domain skills. Standalone Registry entrypoints use Pi directly; managed sessions invoke the installed adapter package.
+Each agent owns its native Pi defaults, provider/model, tools, and domain skills. Managed `runtime: {"name":"pi"}` packages use the Go Pi preparer for their private profile and exact executable; standalone entrypoints retain profile preparation. Standalone Registry entrypoints use Pi directly; managed sessions invoke the installed adapter package.
 
 ## Pi under Factory
 
 Factory supplies `FACTORY_MCP_URL`, a scoped `FACTORY_MCP_TOKEN`, `FACTORY_THREAD_ID`, `FACTORY_PARTICIPANT_ID`, and the runtime-provided `FACTORY_COMMS_SKILL` directory. Do not configure these manually or put credentials in model prompts.
 
-The Registry Pi agents’ `start.sh` selects [Pi adapter](pi/pi-rpc-session.mjs). The adapter:
+For explicitly selected managed Pi runtimes, the Registry entrypoint reuses the prepared profile and invokes the [Pi adapter](pi/pi-rpc-session.mjs). The adapter:
 
 - Adds the Factory MCP server to the private native Pi profile, preserving existing MCPs. The credential stays in the environment.
 - Loads the controller's `control-plane-comms` skill and starts Pi in RPC mode.
@@ -69,3 +69,7 @@ Other runners may emit the same versioned, newline-delimited protocol without de
 ## Generic package inputs
 
 The Go controller supports `packages`, `type: "run"`, package-specific `with`, and named `input_bindings`. It supplies private JSON files through `FACTORY_INPUTS_PATH` and `FACTORY_PACKAGE_CONFIG`; an LLM assignment at `FACTORY_PROMPT_PATH` also contains the bound JSON. The Pi adapter reads that prompt file when no explicit `-p` was supplied. Classification bundles use the same MCP completion contract and need no Pi runtime. See [package bindings](../docs/packages.md).
+
+## Adding a native runner
+
+Follow [Adding an agent runtime](../docs/runtime-adapters.md) for the Go preparation port, selection/identity, capabilities, lifecycle ownership and runnable non-Pi conformance fixture. The native runner is separate from the `command` host execution mechanism. Pi provider/model overrides remain CTRL-005; lifecycle controller-only routing remains CTRL-001.
