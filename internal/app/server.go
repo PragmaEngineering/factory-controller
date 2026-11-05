@@ -32,8 +32,16 @@ func Serve(ctx context.Context, root string) error {
 	var stopWorker func() error
 	var clientToClose *hatchet.Client
 	var database *state.Store
+	var supervisor *sessions.Manager
 	defer func() {
 		cancelService()
+		if supervisor != nil {
+			shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := supervisor.Shutdown(shutdown); err != nil {
+				fmt.Fprintf(os.Stderr, "stop agent sessions: %v\n", err)
+			}
+			cancel()
+		}
 		if stopWorker != nil {
 			_ = stopWorker()
 		}
@@ -60,6 +68,7 @@ func Serve(ctx context.Context, root string) error {
 		return err
 	}
 	return sessions.ServeWithHandler(serviceContext, root, database, func(manager *sessions.Manager) (http.Handler, error) {
+		supervisor = manager
 		communication, err := comms.New(serviceContext, database, artifacts.HostCollector{Root: root})
 		if err != nil {
 			return nil, err
@@ -89,13 +98,13 @@ func Serve(ctx context.Context, root string) error {
 		controller.Engine = engine
 		sessionHandler := sessions.Handler(manager)
 		controlHandler := control.Handler(controller)
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return serviceLifecycleHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/sessions") {
 				sessionHandler.ServeHTTP(w, r)
 				return
 			}
 			controlHandler.ServeHTTP(w, r)
-		}), nil
+		}), cancelService), nil
 	})
 }
 
@@ -127,4 +136,27 @@ func Root() (string, error) {
 		return "", err
 	}
 	return filepath.Abs(root)
+}
+
+// Service lifecycle belongs to the host, not the workflow controller. The
+// private socket is the authority; monitor's bridge does not expose this route.
+func serviceLifecycleHandler(next http.Handler, stop context.CancelFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/shutdown" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"stopping":true}`))
+		if flush, ok := w.(http.Flusher); ok {
+			flush.Flush()
+		}
+		stop()
+	})
 }

@@ -4,7 +4,7 @@ Factory runs configured agent workflows. A workflow has runnable-package or deci
 
 To operate a configured workflow from Codex, Claude Code, or another agent, use the [Factory operator skill](skills/factory-operator/SKILL.md). See [installation and invocation](docs/agent-operator.md) for manually starting runs, following progress, messaging agents, and handling decisions through your agent session.
 
-The CLI is the primary interface. Run `./install.sh` once from this checkout to install the CLI as `factory` in a directory on your `PATH` (by default `~/.local/bin`). The installer checks `PATH` before building. Run `factory` for command help. On the first command, Factory starts its local service and an embedded Hatchet engine automatically. No Hatchet account, server setup, or client token is required for local use. First use downloads and initializes the local database before the command proceeds. Startup reports its wait and supports Ctrl-C; later commands reuse the running service. Factory stores execution and session state in Factory-owned PostgreSQL tables alongside Hatchet's tables; all terminals and projects connect to one local service through `~/.factory/runtime/factory.sock`. The inherited `FACTORY_RUNTIME_DIR` variable does not select another service; contexts organize executions within the shared service. Factory does not use Hatchet Cloud. A separately deployed, self-hosted Hatchet server remains an operator-managed option; see the [engine guide](docs/hatchet-engine.md).
+The CLI is the primary interface. Run `./install.sh` once from this checkout to install the CLI as `factory` in a directory on your `PATH` (by default `~/.local/bin`). The installer checks `PATH` before building. Run `factory` for command help. Start the local service explicitly with `factory start`; stop it with `factory stop`. Operational commands such as `ls`, `exec`, and `inbox` only connect and fail quickly if the service is unavailable. Local startup manages the embedded engine and database without a separate account or client token. The first `start` may download and initialize the database; later starts reuse its data. Startup reports its wait and supports Ctrl-C. Factory stores execution and session state in Factory-owned PostgreSQL tables alongside Hatchet's tables; all terminals and projects connect to one local service through `~/.factory/runtime/factory.sock`. The inherited `FACTORY_RUNTIME_DIR` variable does not select another service; contexts organize executions within the shared service. Factory does not use Hatchet Cloud. A separately deployed, self-hosted Hatchet server remains an operator-managed option; see the [engine guide](docs/hatchet-engine.md).
 
 `./install.sh` builds and installs only the Go binary. Managed Pi agents and Node.js classifiers also require the [adapter/SDK dependencies](adapters/README.md#setup) and [Registry package setup](../registry/README.md#controls-dependencies). Installing the binary does not install npm dependencies, Pi, or agent tools.
 
@@ -15,6 +15,7 @@ For a complete first run with the Go agents and both human approvals, follow the
 Start from [factory.example.json](factory.example.json) if you need a small coding workflow. Copy it to the project as `factory.json` and set the two agent paths and entrypoints to your installed packages.
 
 ```sh
+factory start
 factory exec "Add a health endpoint"
 factory exec "Implement the attached proposal" -f proposal.md -f acceptance.txt
 factory exec -f request.md                  # a file alone is enough
@@ -67,3 +68,5 @@ Execution documents are separate from project source. Configure `factory_dir` (d
 To integrate another native agent runner, see [Adding an agent runtime](docs/runtime-adapters.md). It defines preparation ownership, explicit runner selection, capabilities, compatibility and the non-Pi conformance test. Adding a role for an existing runner needs no new adapter.
 
 For per-agent provider, model, endpoint and credential selection, see [Pi package overrides](docs/pi-overrides.md).
+
+`factory stop` shuts down the shared service and its local agent sessions, retaining execution history and files. It affects every project using that service; use `factory cancel EXECUTION-ID` to cancel only one execution. Interrupted agent sessions are not reattached after restart; inspect execution state before retrying. `start` and `stop` are idempotent, and neither submits or cancels a workflow.

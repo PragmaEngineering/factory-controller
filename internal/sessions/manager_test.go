@@ -179,3 +179,22 @@ func TestResourceProjectionAndBudgetNoticesSurviveReopen(t *testing.T) {
 	}
 	require.Equal(t, 1, count)
 }
+
+func TestShutdownStopsOwnedProcessesAndRejectsNewLaunches(t *testing.T) {
+	db := testdb.Open(t)
+	root := t.TempDir()
+	manager, err := Open(root, "", db)
+	require.NoError(t, err)
+	launch := Launch{Name: "worker", Runner: "command", Directory: root, Command: []string{"/bin/sh", "-c", "printf started; sleep 30"}}
+	session, err := manager.Launch(launch)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, manager.Shutdown(ctx))
+	current, err := manager.Get(session.ID)
+	require.NoError(t, err)
+	require.Equal(t, Stopped, current.State)
+	_, err = manager.Launch(launch)
+	require.ErrorContains(t, err, "shutting down")
+	require.NoError(t, manager.Shutdown(ctx))
+}

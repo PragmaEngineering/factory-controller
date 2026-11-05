@@ -2,10 +2,15 @@
 
 Run from the intended project directory. Uppercase IDs and paths below stand for values returned by Factory; do not pass the labels literally.
 
+## Service lifecycle
+
+`factory start` explicitly starts the shared local service and waits for readiness. Operational commands never start it. When authorized to run a workflow, start the service if needed before submission. For an inspection-only request, report that the service is unavailable rather than starting it without authorization. `factory stop` affects all projects and agents using the shared service; only run it when the user requests service shutdown. Use execution cancellation for one workflow.
+
 ## Start or locate an execution
 
 ```sh
 factory                                      # help; does not launch work
+factory start                                # explicit startup for an authorized run
 factory exec "Add the requested behavior" --context '*'
 factory exec "Use these documents" -f /path/brief.md -f /path/constraints.md --context '*'
 factory exec -f /path/brief.md -c /path/project/factory.json --context '*'

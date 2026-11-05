@@ -36,6 +36,7 @@ type Manager struct {
 	environ   []string
 	db        *state.Store
 	terminals map[string]*os.File
+	closing   bool
 }
 
 func Open(root, socket string, db *state.Store) (*Manager, error) {
@@ -127,6 +128,11 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	for name, value := range request.Environment {
 		command.Env = append(command.Env, name+"="+value)
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return Session{}, errors.New("session supervisor is shutting down")
+	}
 	var terminal *os.File
 	if request.InputMode == "none" {
 		command.Stdin = strings.NewReader(request.Stdin)
@@ -149,9 +155,7 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 		_, _ = command.Process.Wait()
 		return Session{}, err
 	}
-	m.mu.Lock()
 	m.terminals[id] = terminal
-	m.mu.Unlock()
 	outputDone := make(chan struct{})
 	go m.captureOutput(record, terminal, outputDone)
 	go m.waitForExit(id, command, terminal, outputDone)
@@ -510,4 +514,48 @@ func (m *Manager) validToken(id, token string) bool {
 	}
 	digest := tokenDigest(token)
 	return subtle.ConstantTimeCompare(stored[:], digest[:]) == 1
+}
+
+// Shutdown terminates locally owned process groups and waits for their output
+// and final session state to be persisted before the database is closed.
+func (m *Manager) Shutdown(ctx context.Context) error {
+	m.mu.Lock()
+	m.closing = true
+	ids := make([]string, 0, len(m.terminals))
+	for id := range m.terminals {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+	var failures []error
+	for _, id := range ids {
+		current, err := m.Get(id)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if current.State == Running {
+			if err := m.Stop(id); err != nil {
+				// The process may have exited between the state read and stop request.
+				current, readErr := m.Get(id)
+				if readErr != nil || current.State == Running {
+					failures = append(failures, err)
+				}
+			}
+		}
+	}
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		m.mu.Lock()
+		remaining := len(m.terminals)
+		m.mu.Unlock()
+		if remaining == 0 {
+			return errors.Join(failures...)
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(append(failures, ctx.Err())...)
+		case <-ticker.C:
+		}
+	}
 }

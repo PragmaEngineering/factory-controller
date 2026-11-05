@@ -19,6 +19,8 @@ Check that `factory` is available. Running `factory` without arguments prints co
 
 ## Start and follow
 
+For an authorized new run, use `factory start` before submission; it is idempotent. Inspection-only requests do not authorize starting a stopped service. Never use `factory stop` to cancel one workflow.
+
 Use the user's brief and supplied files without rewriting their requirements. Use repeated `-f` for large documents; `-f -` reads stdin. A request to run authorizes starting the workflow, not answering its human decisions.
 
 ```sh

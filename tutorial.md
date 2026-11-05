@@ -113,9 +113,12 @@ The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTE
 Start the execution service and submit the request from `hello-go`:
 
 ```sh
+factory start
 factory exec "Create a minimal Go program that prints Hello, world!"
 factory ls
 ```
+
+`factory start` is explicit and idempotent. Other commands fail if the service is not running. Use `factory stop` to shut down the shared service and all its active agents; use execution cancellation to stop only one workflow.
 
 Install the separate [Pragma Monitor](../monitor/README.md) once from its checkout:
 

@@ -202,3 +202,8 @@ func (c *Client) ReportTemplate(ctx context.Context) (string, error) {
 	err := c.call(ctx, http.MethodGet, "/report-template", nil, &value)
 	return value.Template, err
 }
+
+// Shutdown requests explicit local service shutdown; it never starts a daemon.
+func (c *Client) Shutdown(ctx context.Context) error {
+	return c.call(ctx, http.MethodPost, "/shutdown", struct{}{}, nil)
+}
