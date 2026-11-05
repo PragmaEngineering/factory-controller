@@ -87,3 +87,5 @@ Reports are saved database snapshots. Default history is the last 90 days, indep
 `factory stop --all` performs daemon-independent recovery of recorded services, agents, and embedded dependency processes. It preserves data and affects every local execution; run only when the user authorizes shared-service recovery. See [resource ownership](../../../docs/local-resources.md).
 
 `factory prune --dry-run` lists disposable local resources eligible for offline cleanup; `factory prune` removes them. The service must be stopped. Execution evidence and database history are retained. Do not prune without user authorization.
+
+`factory prune --all` also deletes recorded execution inputs, artifacts, history, service logs, and managed database data. Preview with `--dry-run`. It requires confirmation, or `--yes` for explicitly authorized automation. Never infer deletion authorization from a request to stop or restart the service. Source workspaces, worktrees, external dependencies, and unrecorded historical resources are excluded.

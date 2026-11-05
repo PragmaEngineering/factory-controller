@@ -30,7 +30,7 @@ func Help(w io.Writer) {
 	fmt.Fprint(w, `Factory executes configured agent workflows.
 
   factory start | stop [--all]
-  factory prune [--dry-run]
+  factory prune [--all] [--dry-run] [--yes]
   factory exec [brief] [-f file ...] [-c factory.json] [--context ID]
   factory ls [--context ID] [-o json]
   factory get-context | set-context ID | contexts

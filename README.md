@@ -72,3 +72,5 @@ For per-agent provider, model, endpoint and credential selection, see [Pi packag
 `factory stop` shuts down the shared service and its local agent sessions, retaining execution history and files. It affects every project using that service; use `factory cancel EXECUTION-ID` to cancel only one execution. Interrupted agent sessions are not reattached after restart; inspect execution state before retrying. `start` and `stop` are idempotent, and neither submits or cancels a workflow.
 
 For recovery after an interrupted daemon, use `factory stop --all`; it also stops verified managed dependency leftovers without deleting data. See [local resource recovery](docs/local-resources.md).
+
+Use `factory prune --dry-run` to inspect disposable cleanup, or `factory prune --all --dry-run` to include retained execution and database data. Stop resources first. Destructive `factory prune --all` requires confirmation; `--yes` supports automation. Source workspaces and worktrees are excluded.

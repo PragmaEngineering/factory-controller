@@ -142,3 +142,49 @@ func TestPruneRefusesReplacedDirectory(t *testing.T) {
 	require.ErrorContains(t, err, "identity changed")
 	require.DirExists(t, profiles)
 }
+
+func TestPruneAllRemovesOnlyRecordedHistory(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	registry := Registry{Root: root}
+	history := filepath.Join(root, "history")
+	require.NoError(t, os.Mkdir(history, 0700))
+	require.NoError(t, registry.RecordPath("retained", history))
+	untracked := filepath.Join(root, "untracked")
+	require.NoError(t, os.Mkdir(untracked, 0700))
+	plan, err := registry.PlanPrune(false)
+	require.NoError(t, err)
+	require.Empty(t, plan)
+	plan, err = registry.PlanPrune(true)
+	require.NoError(t, err)
+	require.Len(t, plan, 1)
+	require.NoError(t, registry.ApplyPrune(plan))
+	require.NoDirExists(t, history)
+	require.DirExists(t, untracked)
+	items, err := registry.List()
+	require.NoError(t, err)
+	require.Empty(t, items)
+}
+
+func TestSurvivingAgentChildBlocksPruning(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	ready := filepath.Join(root, "ready")
+	command := exec.Command("sh", "-c", `sh -c 'trap "" TERM; printf ready > "$1"; exec sleep 60' child "$1" & wait`, "leader", ready)
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	require.NoError(t, command.Start())
+	done := make(chan struct{})
+	go func() { _ = command.Wait(); close(done) }()
+	t.Cleanup(func() { _ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL); <-done })
+	require.Eventually(t, func() bool { _, err := os.Stat(ready); return err == nil }, time.Second, 10*time.Millisecond)
+	registry := Registry{Root: root}
+	require.NoError(t, registry.RecordProcess("agent", command.Process.Pid))
+	items, err := registry.List()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, StopProcess(ctx, items[0].Process, true), context.DeadlineExceeded)
+	_, err = registry.PlanPrune(false)
+	require.ErrorContains(t, err, "still running")
+}

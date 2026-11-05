@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"controls/internal/control"
+	"controls/internal/localresources"
 	"controls/internal/sessions"
 )
 
@@ -42,6 +43,13 @@ func startService(ctx context.Context, root string, controller *control.Client, 
 		return err
 	}
 	defer logFile.Close()
+	logPath, err := filepath.EvalSymlinks(logFile.Name())
+	if err != nil {
+		return err
+	}
+	if err := (localresources.Registry{Root: root}).RecordPath("retained", logPath); err != nil {
+		return err
+	}
 	command := exec.Command(executable, "_serve")
 	command.Dir = root
 	command.Stdout, command.Stderr = logFile, logFile

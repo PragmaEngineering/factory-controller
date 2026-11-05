@@ -57,21 +57,27 @@ func Serve(ctx context.Context, root string) error {
 			}
 		}
 	}()
+	var managedDatabase string
 	// Persist dependency ownership before startup, including failed attempts.
 	if os.Getenv("FACTORY_HATCHET_MODE") != "self-hosted" && os.Getenv(hatchet.EmbeddedDatabaseURLEnv) == "" {
 		path, err := localresources.EmbeddedDatabasePath(root)
 		if err != nil {
 			return err
 		}
+		managedDatabase = path
 		if err := (localresources.Registry{Root: root}).RecordPath("database", path); err != nil {
 			return err
 		}
 	}
 	client, err := newHatchetClient()
+	clientToClose = client
+	if managedDatabase != "" {
+		// Capture filesystem identity after initialization even when startup fails.
+		err = errors.Join(err, (localresources.Registry{Root: root}).RecordPath("database", managedDatabase))
+	}
 	if err != nil {
 		return err
 	}
-	clientToClose = client
 	database, err = state.Open(serviceContext)
 	if err != nil {
 		return err

@@ -44,3 +44,24 @@ Dry-run lists candidates without removing them. Unknown files are left alone.
 Managed paths are recorded with filesystem identity. Cleanup refuses symlink
 redirects and replaced directories rather than inferring ownership from names.
 Recursive deletion does not follow links into source workspaces.
+
+## Remove retained data
+
+```bash
+factory stop --all
+factory prune --all --dry-run
+factory prune --all          # lists targets and requires typing yes
+factory prune --all --yes    # explicit noninteractive authorization
+```
+
+`--all` additionally deletes recorded execution inputs, artifacts, invocation
+files, service logs, and managed embedded database data, including execution
+history. It does not stop running resources implicitly. A cancelled confirmation
+or EOF removes nothing. Dry-run never asks for confirmation or removes resources.
+
+Only journaled paths are deleted. Executions from before ownership tracking may
+have unrecorded files; these are preserved. User configurations, source workspaces,
+worktrees, shared download caches, and externally managed dependencies are never
+prune targets. Ownership records and lifecycle lock files remain so concurrent
+clients continue to coordinate safely. A running agent group whose original
+leader is no longer identifiable blocks cleanup; inspect it manually.

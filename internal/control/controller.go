@@ -15,6 +15,7 @@ import (
 	"controls/internal/comms"
 	"controls/internal/factoryconfig"
 	"controls/internal/inputs"
+	"controls/internal/localresources"
 	"controls/internal/sessions"
 
 	"github.com/google/uuid"
@@ -58,6 +59,27 @@ func (c *Controller) Exec(ctx context.Context, request ExecRequest) (Execution, 
 	}
 	if err := os.Chmod(executionDirectory, 0700); err != nil {
 		return Execution{}, fmt.Errorf("protect execution directory: %w", err)
+	}
+	if c.Root != "" {
+		resources := localresources.Registry{Root: c.Root}
+		canonical, err := filepath.EvalSymlinks(executionDirectory)
+		if err != nil {
+			return Execution{}, err
+		}
+		if err := resources.RecordPath("retained", canonical); err != nil {
+			return Execution{}, err
+		}
+		runtimeExecution := filepath.Join(c.Root, "executions", id)
+		if err := os.MkdirAll(runtimeExecution, 0700); err != nil {
+			return Execution{}, err
+		}
+		canonical, err = filepath.EvalSymlinks(runtimeExecution)
+		if err != nil {
+			return Execution{}, err
+		}
+		if err := resources.RecordPath("retained", canonical); err != nil {
+			return Execution{}, err
+		}
 	}
 	inputRoot := filepath.Join(executionDirectory, "inputs")
 	bundle, err := inputs.Capture(inputRoot, request.Brief, request.Files, bytes.NewReader(request.Stdin))

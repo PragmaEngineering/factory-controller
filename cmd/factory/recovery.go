@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"controls/internal/sessions"
 	"errors"
+	"fmt"
+	"net"
 	"os"
+	"syscall"
 	"time"
 
 	"controls/internal/control"
@@ -49,27 +53,61 @@ func stopAllResources(ctx context.Context, root string, controller *control.Clie
 			return err
 		}
 	}
+	var failures []error
 	for _, kind := range []string{"service", "agent"} {
 		for _, item := range items {
 			if item.Kind != kind {
 				continue
 			}
 			if err := localresources.StopProcess(stopping, item.Process, kind == "agent"); err != nil {
-				return err
+				failures = append(failures, fmt.Errorf("stop %s: %w", kind, err))
 			}
 		}
+	}
+	// Keep the database available when an agent could not be stopped. Still
+	// attempt all recorded processes so one failure does not hide other results.
+	if len(failures) > 0 {
+		return errors.Join(failures...)
 	}
 	lease, err := acquireServiceLease(root)
 	if err != nil {
 		return errors.Join(gracefulErr, err)
 	}
 	defer lease.Close()
+	// A pre-journal daemon can expose the socket without holding the new lease.
+	// Never stop its database underneath a still-running, unidentified owner.
+	if err := requireNoServiceListener(root); err != nil {
+		return errors.Join(gracefulErr, err)
+	}
 	for _, item := range items {
 		if item.Kind == "database" {
 			if err := localresources.StopDatabase(stopping, item.Path); err != nil {
-				return err
+				failures = append(failures, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(failures...)
+}
+
+func requireNoServiceListener(root string) error {
+	socket := sessions.SocketPath(root)
+	info, err := os.Lstat(socket)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return errors.New("Factory socket path is not a socket")
+	}
+	connection, err := net.DialTimeout("unix", socket, 250*time.Millisecond)
+	if err == nil {
+		connection.Close()
+		return errors.New("Factory service is still listening; no stopped owner was verified")
+	}
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+		return nil
+	}
+	return fmt.Errorf("inspect Factory service listener: %w", err)
 }

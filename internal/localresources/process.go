@@ -57,8 +57,20 @@ func Matches(expected *Process) (bool, error) {
 
 func StopProcess(ctx context.Context, expected *Process, group bool) error {
 	live, err := Matches(expected)
-	if err != nil || !live {
+	if err != nil {
 		return err
+	}
+	if !live {
+		if group && expected != nil && expected.Group == expected.PID {
+			running, err := orphanGroupRunning(expected)
+			if err != nil {
+				return err
+			}
+			if running {
+				return fmt.Errorf("process group %d has no verified leader", expected.Group)
+			}
+		}
+		return nil
 	}
 	target := expected.PID
 	if group {
@@ -73,7 +85,11 @@ func StopProcess(ctx context.Context, expected *Process, group bool) error {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		live, err = Matches(expected)
+		if group {
+			live, err = GroupRunning(expected.Group)
+		} else {
+			live, err = Matches(expected)
+		}
 		if err != nil || !live {
 			return err
 		}
@@ -83,4 +99,45 @@ func StopProcess(ctx context.Context, expected *Process, group bool) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+// GroupRunning also sees children that survive their launcher. Never remove
+// profiles while an agent's process group still has running members.
+func GroupRunning(group int) (bool, error) {
+	if group <= 1 {
+		return false, errors.New("invalid managed process group")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	data, err := exec.CommandContext(ctx, "ps", "-axo", "pgid=,stat=").Output()
+	if err != nil {
+		return false, fmt.Errorf("inspect process group %d: %w", group, err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		id, err := strconv.Atoi(fields[0])
+		if err != nil {
+			return false, err
+		}
+		if id == group && !strings.HasPrefix(fields[1], "Z") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func orphanGroupRunning(expected *Process) (bool, error) {
+	actual, err := Inspect(expected.PID)
+	if err != nil {
+		return false, err
+	}
+	// A live process with a different identity reused this PID/group. It is not
+	// ours, and neither its process nor its group may be signalled.
+	if actual != nil {
+		return false, nil
+	}
+	return GroupRunning(expected.Group)
 }

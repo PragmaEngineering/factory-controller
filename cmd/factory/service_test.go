@@ -181,3 +181,60 @@ func TestPruneDryRunAndOfflineCleanup(t *testing.T) {
 	require.NoError(t, runCommand(context.Background(), []string{"prune"}, root, strings.NewReader(""), &output, &output))
 	require.NoDirExists(t, profiles)
 }
+
+func TestPruneAllRequiresConfirmationAndPreservesSource(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	history := filepath.Join(root, "execution")
+	require.NoError(t, os.Mkdir(history, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(history, "report.html"), []byte("evidence"), 0600))
+	source := filepath.Join(root, "main.go")
+	require.NoError(t, os.WriteFile(source, []byte("source"), 0600))
+	registry := localresources.Registry{Root: root}
+	require.NoError(t, registry.RecordPath("retained", history))
+	var output bytes.Buffer
+	invoke := func(args []string, input string) error {
+		return runCommand(context.Background(), args, root, strings.NewReader(input), &output, &output)
+	}
+	require.NoError(t, invoke([]string{"prune", "--all", "--dry-run"}, ""))
+	require.DirExists(t, history)
+	require.ErrorContains(t, invoke([]string{"prune", "--all"}, "no\n"), "cancelled")
+	require.DirExists(t, history)
+	require.ErrorContains(t, invoke([]string{"prune", "--all"}, ""), "cancelled")
+	require.DirExists(t, history)
+	require.NoError(t, invoke([]string{"prune", "--all"}, "yes\n"))
+	require.NoDirExists(t, history)
+	require.FileExists(t, source)
+	require.NoError(t, invoke([]string{"prune", "--all", "--yes"}, ""))
+}
+
+func TestPruneConfirmationHonorsCancellation(t *testing.T) {
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, confirmPrune(ctx, reader), context.Canceled)
+}
+
+func TestPruneRejectsLiveUnjournaledService(t *testing.T) {
+	root := fakeService(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
+	var output bytes.Buffer
+	require.ErrorContains(t, runCommand(context.Background(), []string{"prune", "--all", "--yes"}, root, strings.NewReader(""), &output, &output), "service is still listening")
+}
+
+func TestPruneAllYesDeletesWithoutInput(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	history := filepath.Join(root, "execution")
+	require.NoError(t, os.Mkdir(history, 0700))
+	require.NoError(t, (localresources.Registry{Root: root}).RecordPath("retained", history))
+	var output bytes.Buffer
+	require.NoError(t, runCommand(context.Background(), []string{"prune", "--all", "--yes"}, root, strings.NewReader(""), &output, &output))
+	require.NoDirExists(t, history)
+}
+
+func TestRecoveryDoesNotClaimUnrecordedDaemonIsStopped(t *testing.T) {
+	root := fakeService(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	require.ErrorContains(t, stopAllResources(context.Background(), root, control.NewClient(sessions.SocketPath(root))), "still listening")
+}

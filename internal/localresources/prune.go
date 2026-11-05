@@ -30,6 +30,15 @@ func (r Registry) PlanPrune(all bool) ([]Action, error) {
 			if live {
 				return nil, fmt.Errorf("managed %s process %d is running; run factory stop --all", item.Kind, item.Process.PID)
 			}
+			if item.Kind == "agent" && item.Process.Group == item.Process.PID {
+				running, err := orphanGroupRunning(item.Process)
+				if err != nil {
+					return nil, err
+				}
+				if running {
+					return nil, fmt.Errorf("agent process group %d is still running", item.Process.Group)
+				}
+			}
 			plan = append(plan, Action{Resource: item})
 		case "database":
 			process, err := DatabaseProcess(item.Path)

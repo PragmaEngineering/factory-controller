@@ -68,7 +68,15 @@ func (r Registry) Record(item Resource) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(file.Name(), r.filename(item))
+	if err := os.Rename(file.Name(), r.filename(item)); err != nil {
+		return err
+	}
+	directory, err := os.Open(r.directory())
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	return directory.Sync()
 }
 
 func (r Registry) RecordProcess(kind string, pid int) error {
