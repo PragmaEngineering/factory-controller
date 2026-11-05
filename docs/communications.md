@@ -107,7 +107,7 @@ Automatic delivery handles **incoming** messages. It never resubmits a rejected 
 
 ## Pi and other runners
 
-Pi maps native prompt dispatch to `runtime_status: busy` and `agent_settled` to `runtime_status: idle`, using `send_message` under its scoped identity. Lifecycle calls are serialized and retry unchanged operation IDs up to three times; persistent failure terminates the session visibly. Incoming messages are queued/steered through Pi RPC and acknowledged after successful handoff. Acknowledgment proves delivery, not model comprehension or execution.
+Pi maps native prompt dispatch to `runtime_status: busy` and `agent_settled` to `runtime_status: idle`, using `send_message` under its scoped identity. Lifecycle calls are serialized and retry unchanged operation IDs up to three times; persistent failure terminates the session visibly. After launcher workspace selection, the Pi bridge adds its actual working directory as source context; configured execution-file paths remain separate. Incoming messages are queued/steered through Pi RPC and acknowledged after successful handoff. Acknowledgment proves delivery, not model comprehension or execution.
 
 Another runner implements the same MCP connection, schema, lifecycle observation and delivery contract using its native APIs. It must retain one ordered cursor and avoid competing model/background readers. No Pi event names belong in the communication service or workflow engine. Packages without idle telemetry still receive rejected-result recovery; missing-result idle recovery requires a runtime capable of reporting idle. Existing invocation time/budget and process-exit supervision remain in force. A stopped process cannot be woken by a stored message.
 

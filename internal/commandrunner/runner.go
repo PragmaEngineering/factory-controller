@@ -271,7 +271,7 @@ func exitCode(session sessions.Session) string {
 func buildPrompt(work execution.Work, threadID string) string {
 	var prompt strings.Builder
 	fmt.Fprintf(&prompt, "You are running Factory step %s (visit %d, attempt %d).\n\n", work.Step.ID, work.Visit, work.Try)
-	fmt.Fprintf(&prompt, "Factory configuration directory: %s\n", work.Project)
+	prompt.WriteString("Source workspace: the process working directory selected by your launcher. Use that directory for source edits, checks and source-relative commands; the factory configuration location is not a source-workspace selection.\n")
 	if work.FilesDir != "" {
 		fmt.Fprintf(&prompt, "Execution files directory: %s\nWrite workflow documents and evidence here, not in the project source. Relative publication/output names resolve here.\n", work.FilesDir)
 	}

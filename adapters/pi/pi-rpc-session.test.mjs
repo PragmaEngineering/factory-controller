@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -65,6 +65,7 @@ async function runSession(t, scenario, options = {}) {
   const fake = join(root, 'fake-pi.mjs');
   writeFileSync(fake, `#!/usr/bin/env node
 import { createInterface } from 'node:readline';
+import { writeFileSync } from 'node:fs';
 import { Client } from '${moduleURL('client/index.js')}';
 import { StreamableHTTPClientTransport } from '${moduleURL('client/streamableHttp.js')}';
 const client = new Client({name:'fake-pi',version:'1'});
@@ -74,7 +75,11 @@ for await (const line of createInterface({input:process.stdin})) {
   turns++;
   const request=JSON.parse(line);
   console.log(JSON.stringify({type:'response',command:'prompt',success:true,id:request.id}));
-  console.log(JSON.stringify({type:'tool_execution_start',input:request.message,mode:request.streamingBehavior || 'initial'}));
+  console.log(JSON.stringify({type:'tool_execution_start',input:request.message,mode:request.streamingBehavior || 'initial',cwd:process.cwd()}));
+  if (${JSON.stringify(Boolean(options.workspaceFiles))}) {
+    writeFileSync('source.txt','source edit');
+    writeFileSync(${JSON.stringify(options.workspaceFiles || '')}+'/review.md','review evidence');
+  }
   const scenario=${JSON.stringify(scenario)};
   if(scenario==='exhausted' || scenario==='no-recovery' || (scenario==='recover' && turns===1)) {
     console.log(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'length',usage:{output:16384}}}));
@@ -97,6 +102,7 @@ await client.close();
   writeFileSync(promptPath, 'initial work');
   const args = options.promptFile ? [] : ['-p', 'initial work'];
   const child = spawn(process.execPath, [join(import.meta.dirname, 'pi-rpc-session.mjs'), ...args], {
+    cwd: options.workingDirectory,
     env: { ...process.env, ...(options.promptFile ? { FACTORY_PROMPT_PATH: promptPath } : {}), AGENT_EXECUTABLE: fake, PI_CODING_AGENT_DIR: profile, FACTORY_MCP_URL: url, FACTORY_MCP_TOKEN: 'test-secret', FACTORY_THREAD_ID: 'thread', FACTORY_PARTICIPANT_ID: 'worker', FACTORY_COMMS_SKILL: root, FACTORY_PI_CONTINUATION_LIMIT: scenario === 'no-recovery' ? '0' : '2' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -114,6 +120,10 @@ await client.close();
   const code = await new Promise(resolve => child.on('close', resolve));
   const records = output.trim().split('\n').map(JSON.parse);
   const turns = records.filter(item => item.type === 'tool_execution_start');
+  if (options.workingDirectory) {
+    assert.equal(turns[0].cwd, realpathSync(options.workingDirectory));
+    assert(turns[0].input.includes('Source workspace (actual process working directory): '+JSON.stringify(realpathSync(options.workingDirectory))));
+  }
   if (['peer', 'recover', 'completion-repair'].includes(scenario)) {
     assert.equal(code, 0, error);
     assert(messages.some(item => item.id === 'accepted-result'));
@@ -180,3 +190,16 @@ for (const [scenario, description] of Object.entries({
 }
 
 test("managed Pi package reads its Factory prompt file without Pi-specific factory arguments", async t => { await runSession(t, "recover", { promptFile: true }); });
+
+test('native source context follows launcher cwd while evidence uses execution storage', async t => {
+  const root=mkdtempSync(join(tmpdir(),'factory-workspace-'));
+  t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const {mkdirSync,existsSync}=await import('node:fs');
+  const workspace=join(root,'selected source');mkdirSync(workspace);
+  const files=join(root,'execution files');mkdirSync(files);
+  await runSession(t,'recover',{workingDirectory:workspace,workspaceFiles:files});
+  assert.equal(readFileSync(join(workspace,'source.txt'),'utf8'),'source edit');
+  assert.equal(readFileSync(join(files,'review.md'),'utf8'),'review evidence');
+  assert(!existsSync(join(root,'source.txt')));
+  assert(!existsSync(join(workspace,'review.md')));
+});

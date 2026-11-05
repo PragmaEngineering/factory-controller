@@ -46,7 +46,7 @@ There is no `FACTORY_FILES_DIR` environment variable. Commands receive paths thr
 
 `outputs`, extra file publications and reported file names resolve within the execution files directory, not the project checkout. The host collector checks containment, rejects escaping paths/symlinks, hashes actual bytes and retains published review revisions. A source-checkout copy does not satisfy a missing execution document. Human review opens the collected/published paths.
 
-Agents write source in the workspace chosen by their launcher and documents in the assigned files directory. Document utilities should receive the assigned absolute input/output paths. Neither agent messages nor action outputs choose or mutate the execution files location.
+Agents write source in the workspace chosen by their launcher and documents in the assigned files directory. The native bridge identifies its actual process working directory as the authoritative source workspace; the configuration directory must not be substituted or inferred from document paths. The generic assignment describes this distinction without presenting the configuration path as a source root. Document utilities should receive the assigned absolute input/output paths. Neither agent messages nor action outputs choose or mutate the execution files location.
 
 Source code need not be Git-backed. For an optional Git workflow, factory scripts prepare the project worktree and agent launchers select it. Controls has no Git operation or worktree lifecycle. Execution documents are outside that worktree and are not automatically included in project commits. See [hooks](hooks.md) and the [Registry Go factory](../../registry/factories/golang/README.md).
 

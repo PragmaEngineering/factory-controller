@@ -3,6 +3,7 @@ package commandrunner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,8 +16,10 @@ import (
 	"controls/internal/artifacts"
 	"controls/internal/comms"
 	"controls/internal/factoryconfig"
+	"controls/internal/packagehash"
 	"controls/internal/sessions"
 	"controls/internal/testdb"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -77,6 +80,49 @@ func TestRuntimeConformance(t *testing.T) {
 		cwd, err := json.Marshal(project)
 		require.NoError(t, err)
 		require.JSONEq(t, string(cwd), string(result.Data["working_directory"]))
+	})
+
+	t.Run("script-selected source and evidence directories remain independent", func(t *testing.T) {
+		work := workFor(t, "complete")
+		source := filepath.Join(t.TempDir(), "selected source")
+		require.NoError(t, os.Mkdir(source, 0700))
+		work.FilesDir = filepath.Join(t.TempDir(), "execution files")
+		require.NoError(t, os.Mkdir(work.FilesDir, 0700))
+		work.Step.Outputs = []string{"review.md"}
+		quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'" }
+		native := filepath.Join(work.Package.Source, "worker")
+		script := fmt.Sprintf(`#!/bin/sh
+set -eu
+if [ "${1:-}" = --version ]; then exec %s --version; fi
+cd %s
+printf source > product.txt
+printf evidence > %s
+exec %s "$@"
+`, quote(native), quote(source), quote(filepath.Join(work.FilesDir, "review.md")), quote(native))
+		require.NoError(t, os.WriteFile(filepath.Join(work.Package.Source, "launch.sh"), []byte(script), 0700))
+		var settings map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(work.Package.Settings, &settings))
+		settings["entrypoint"] = json.RawMessage(`"launch.sh"`)
+		work.Package.Settings, err = json.Marshal(settings)
+		require.NoError(t, err)
+		work.Package.Digest, err = packagehash.Directory(work.Package.Source)
+		require.NoError(t, err)
+		result, err := runner.Run(ctx, work)
+		require.NoError(t, err)
+		expected, err := filepath.EvalSymlinks(source)
+		require.NoError(t, err)
+		var actual string
+		require.NoError(t, json.Unmarshal(result.Data["working_directory"], &actual))
+		actual, err = filepath.EvalSymlinks(actual)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+		require.FileExists(t, filepath.Join(source, "product.txt"))
+		require.NoFileExists(t, filepath.Join(work.Project, "product.txt"))
+		require.NoFileExists(t, filepath.Join(source, "review.md"))
+		require.Len(t, result.Artifacts, 1)
+		evidenceRoot, err := filepath.EvalSymlinks(work.FilesDir)
+		require.NoError(t, err)
+		require.Equal(t, filepath.Join(evidenceRoot, "review.md"), result.Artifacts[0].URI)
 	})
 	t.Run("native failure cannot become completion", func(t *testing.T) {
 		_, err := runner.Run(ctx, workFor(t, "fail"))

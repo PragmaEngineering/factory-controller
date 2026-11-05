@@ -89,7 +89,7 @@ Keep metadata typed and non-secret: do not put credentials, entire environments 
 | Accepted result validation and durable receipt | Communication service |
 | Invocation files retention | Existing host runtime retention policy; adapters do not delete active invocation files |
 
-The generic command runner launches from the configuration/project directory. An entrypoint may select a different source workspace using its existing script interface. `FilesDir` remains execution-owned documents/artifacts; it is not inferred from the native runner or a process's changed working directory. This boundary does not resolve CTRL-004's separate source-workspace prompting defect.
+The generic command runner launches from the configuration/project directory. An entrypoint may select a different source workspace using its existing script interface. `FilesDir` remains execution-owned documents/artifacts; it is not inferred from the native runner or a process's changed working directory. The assignment does not advertise the configuration directory as a source root. After a launcher selects its directory, the native bridge supplies its actual working directory as source context. Checks and edits use that directory; evidence still uses the assigned `FilesDir`. This is prompting and path propagation, not a filesystem sandbox.
 
 For Pi, a selected managed profile is reused by the Registry entrypoint. Standalone launches still create their own profile and invoke Pi normally. There is no second managed copy or native configuration merge in each role script. MCP injection remains owned solely by the JavaScript bridge.
 

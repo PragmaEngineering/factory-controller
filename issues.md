@@ -139,7 +139,7 @@ The existing Registry `go-planning-evidence` skill recommends targeted `GOTOOLCH
 ## CTRL-004 — Build-agent commands leave the configured execution workspace
 
 **Priority:** High
-**Status:** Open
+**Status:** Implemented — 2026-11-05; live model-compliance eval pending
 
 ### Observed defect
 
@@ -175,7 +175,16 @@ Trace the source-directory context supplied by Controls, the Registry launch scr
 - Execution documents remain in the configured execution-files directory; product grading reads the selected source workspace.
 - Non-Git factories remain supported without special-case control-plane behavior.
 
-Investigation and design review must precede implementation. No execution intervention is authorized by this issue.
+### Investigation and implementation
+
+The launchers already changed into the configured source workspace. The generic assignment nevertheless prominently included the original `factory.json` directory, and native injection did not state its actual working directory. That conflicting context is a confirmed contributing defect; code inspection alone cannot establish why the earlier model chose each `cd`.
+
+- Removed the configuration-directory path from the generic source instructions. The native Pi bridge now identifies its actual process working directory after script-owned selection as authoritative for source reads, edits and checks.
+- Clarified Registry role instructions and the Go factory's build instruction. Execution-file paths and host artifact collection remain separate and unchanged; Controls gains no Git logic or script-specific workspace discovery.
+- Regression tests exercise a script-selected plain directory through real managed MCP completion/artifact collection, native Pi input with distinct source/evidence locations, and the actual Registry coder/reviewer launchers followed by the configured commit hook in a private Git fixture. They check that the original checkout receives no product edits.
+- This is path/context correctness, not filesystem enforcement. An unconstrained host agent can still leave its working directory; sandboxing is separate.
+- A fresh live-agent eval is still required to assess model adherence. No live execution or historical eval was repaired, restarted, regraded or resubmitted. Prior directory-mismatched evidence remains unsuitable for a clean comparison until its source provenance is established.
+
 
 ## CTRL-005 — Version-aware runner adapters must apply per-agent factory overrides
 

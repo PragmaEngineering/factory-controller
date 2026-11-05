@@ -5,7 +5,7 @@ description: Communicate with Factory participants through the configured thread
 
 # Control-plane communication
 
-Use the assigned thread and participant identity supplied by the runtime. Discover peer responsibilities and controller/human IDs with `list_participants`; do not guess identities or configure credentials yourself. Work in the assigned project and respect its scope and permissions.
+Use the assigned thread and participant identity supplied by the runtime. Discover peer responsibilities and controller/human IDs with `list_participants`; do not guess identities or configure credentials yourself. Use the launcher-selected source working directory for project operations, and the separately assigned execution files directory for workflow documents/evidence. Do not infer a source root from configuration or artifact paths. Respect the assignment’s scope and permissions.
 
 Use `send_message` for all structured communication. Its payload contains `kind`, `version: 1`, and A2A 0.3 content parts. A text part is `{"kind":"text","text":"..."}`. A data part is `{"kind":"data","data":{...}}`. Use stable `operation_id` values within this assignment; after an uncertain response, retry unchanged with the same ID. Never change content under an accepted ID.
 
