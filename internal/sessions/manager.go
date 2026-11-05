@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"controls/internal/localresources"
 	"controls/internal/state"
 	"controls/internal/telemetry"
 
@@ -142,6 +143,12 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	}
 	if err != nil {
 		return Session{}, fmt.Errorf("launch %s: %w", request.Name, err)
+	}
+	if err := (localresources.Registry{Root: m.root}).RecordProcess("agent", command.Process.Pid); err != nil {
+		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		_ = terminal.Close()
+		_, _ = command.Process.Wait()
+		return Session{}, fmt.Errorf("record managed agent: %w", err)
 	}
 	record := Session{ID: id, ParentID: request.ParentID, ExecutionID: request.ExecutionID,
 		StepID: request.StepID, Visit: request.Visit, Try: request.Try,

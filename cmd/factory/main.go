@@ -11,6 +11,7 @@ import (
 	"controls/internal/app"
 	"controls/internal/cli"
 	"controls/internal/control"
+	"controls/internal/localresources"
 	"controls/internal/sessions"
 )
 
@@ -50,6 +51,9 @@ func runCommand(ctx context.Context, args []string, root string, input io.Reader
 			return err
 		}
 		defer lease.Close()
+		if err := (localresources.Registry{Root: root}).RecordProcess("service", os.Getpid()); err != nil {
+			return err
+		}
 		return app.Serve(ctx, root)
 	case "start":
 		if len(args) != 1 {
@@ -61,8 +65,15 @@ func runCommand(ctx context.Context, args []string, root string, input io.Reader
 		fmt.Fprintln(output, "Factory service is running.")
 		return nil
 	case "stop":
+		if len(args) == 2 && args[1] == "--all" {
+			if err := stopAllResources(ctx, root, controller); err != nil {
+				return err
+			}
+			fmt.Fprintln(output, "Factory-managed resources are stopped.")
+			return nil
+		}
 		if len(args) != 1 {
-			return fmt.Errorf("usage: factory stop")
+			return fmt.Errorf("usage: factory stop [--all]")
 		}
 		if err := stopService(ctx, root, controller); err != nil {
 			return err

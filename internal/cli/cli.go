@@ -29,7 +29,7 @@ var outputOption = map[string]option{"-o": {"output", true}, "--output": {"outpu
 func Help(w io.Writer) {
 	fmt.Fprint(w, `Factory executes configured agent workflows.
 
-  factory start | stop
+  factory start | stop [--all]
   factory exec [brief] [-f file ...] [-c factory.json] [--context ID]
   factory ls [--context ID] [-o json]
   factory get-context | set-context ID | contexts

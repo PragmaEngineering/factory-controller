@@ -18,6 +18,7 @@ import (
 	"controls/internal/comms"
 	"controls/internal/control"
 	"controls/internal/hooks"
+	"controls/internal/localresources"
 	"controls/internal/sessions"
 	"controls/internal/state"
 
@@ -51,9 +52,21 @@ func Serve(ctx context.Context, root string) error {
 		if clientToClose != nil {
 			shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			_ = clientToClose.Close(shutdown)
+			if err := clientToClose.Close(shutdown); err != nil {
+				fmt.Fprintf(os.Stderr, "stop execution engine: %v\n", err)
+			}
 		}
 	}()
+	// Persist dependency ownership before startup, including failed attempts.
+	if os.Getenv("FACTORY_HATCHET_MODE") != "self-hosted" && os.Getenv(hatchet.EmbeddedDatabaseURLEnv) == "" {
+		path, err := localresources.EmbeddedDatabasePath(root)
+		if err != nil {
+			return err
+		}
+		if err := (localresources.Registry{Root: root}).RecordPath("database", path); err != nil {
+			return err
+		}
+	}
 	client, err := newHatchetClient()
 	if err != nil {
 		return err

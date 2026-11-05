@@ -83,3 +83,5 @@ factory report --snapshot REPORT_ID -o json
 ```
 
 Reports are saved database snapshots. Default history is the last 90 days, independent of the selected context. Preserve the returned report ID for exact retrieval. Separate reported counters from agent judgments and human decisions; unavailable quality measurements must not be invented. Generating a report does not rerun product tests or invoke a judge. See [report semantics](../../../docs/reports.md) for template and MCP access.
+
+`factory stop --all` performs daemon-independent recovery of recorded services, agents, and embedded dependency processes. It preserves data and affects every local execution; run only when the user authorizes shared-service recovery. See [resource ownership](../../../docs/local-resources.md).

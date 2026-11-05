@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"controls/internal/localresources"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -137,4 +140,30 @@ func TestDaemonLifecycleIgnoresProjectConfiguration(t *testing.T) {
 		}
 	}
 	require.Empty(t, requests)
+}
+
+func TestStopAllAbsentServiceDoesNotCreateRuntime(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "absent")
+	var output bytes.Buffer
+	require.NoError(t, runCommand(context.Background(), []string{"stop", "--all"}, root, strings.NewReader(""), &output, &output))
+	require.NoDirExists(t, root)
+}
+
+func TestStopAllRecoversOrphanAgent(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	command := exec.Command("sleep", "60")
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	require.NoError(t, command.Start())
+	done := make(chan struct{})
+	go func() { _ = command.Wait(); close(done) }()
+	t.Cleanup(func() { _ = command.Process.Kill(); <-done })
+	registry := localresources.Registry{Root: root}
+	require.NoError(t, registry.RecordProcess("agent", command.Process.Pid))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "evidence"), []byte("retained"), 0600))
+	require.NoError(t, stopAllResources(context.Background(), root, control.NewClient(sessions.SocketPath(root))))
+	process, err := localresources.Inspect(command.Process.Pid)
+	require.NoError(t, err)
+	require.Nil(t, process)
+	require.FileExists(t, filepath.Join(root, "evidence"))
 }
