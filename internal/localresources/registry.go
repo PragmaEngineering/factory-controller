@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 )
 
 type Process struct {
@@ -20,10 +21,16 @@ type Process struct {
 	Started string `json:"started"`
 }
 
+type FileIdentity struct {
+	Device uint64 `json:"device"`
+	Inode  uint64 `json:"inode"`
+}
+
 type Resource struct {
-	Kind    string   `json:"kind"` // service, agent, database, disposable, retained
-	Path    string   `json:"path,omitempty"`
-	Process *Process `json:"process,omitempty"`
+	Kind    string        `json:"kind"` // service, agent, database, disposable, retained
+	Path    string        `json:"path,omitempty"`
+	File    *FileIdentity `json:"file,omitempty"`
+	Process *Process      `json:"process,omitempty"`
 }
 
 type Registry struct{ Root string }
@@ -88,7 +95,11 @@ func (r Registry) RecordPath(kind, path string) error {
 	if err := SafePath(absolute); err != nil {
 		return err
 	}
-	return r.Record(Resource{Kind: kind, Path: absolute})
+	identity, err := fileIdentity(absolute)
+	if err != nil {
+		return err
+	}
+	return r.Record(Resource{Kind: kind, Path: absolute, File: identity})
 }
 
 func (r Registry) List() ([]Resource, error) {
@@ -151,6 +162,34 @@ func SafePath(path string) error {
 		if info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("resource path contains symlink: %s", current)
 		}
+	}
+	return nil
+}
+
+func fileIdentity(path string) (*FileIdentity, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, errors.New("unsupported resource filesystem")
+	}
+	return &FileIdentity{Device: uint64(stat.Dev), Inode: uint64(stat.Ino)}, nil
+}
+func validateFile(item Resource) error {
+	if err := SafePath(item.Path); err != nil {
+		return err
+	}
+	actual, err := fileIdentity(item.Path)
+	if err != nil {
+		return err
+	}
+	if actual != nil && (item.File == nil || *actual != *item.File) {
+		return fmt.Errorf("managed path identity changed: %s", item.Path)
 	}
 	return nil
 }

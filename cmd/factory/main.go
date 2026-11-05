@@ -55,6 +55,8 @@ func runCommand(ctx context.Context, args []string, root string, input io.Reader
 			return err
 		}
 		return app.Serve(ctx, root)
+	case "prune":
+		return pruneCommand(ctx, args[1:], root, input, output)
 	case "start":
 		if len(args) != 1 {
 			return fmt.Errorf("usage: factory start")

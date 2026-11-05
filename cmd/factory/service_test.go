@@ -167,3 +167,17 @@ func TestStopAllRecoversOrphanAgent(t *testing.T) {
 	require.Nil(t, process)
 	require.FileExists(t, filepath.Join(root, "evidence"))
 }
+
+func TestPruneDryRunAndOfflineCleanup(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	profiles := filepath.Join(root, "profiles")
+	require.NoError(t, os.Mkdir(profiles, 0700))
+	require.NoError(t, (localresources.Registry{Root: root}).RecordPath("disposable", profiles))
+	var output bytes.Buffer
+	require.NoError(t, runCommand(context.Background(), []string{"prune", "--dry-run"}, root, strings.NewReader(""), &output, &output))
+	require.Contains(t, output.String(), profiles)
+	require.DirExists(t, profiles)
+	require.NoError(t, runCommand(context.Background(), []string{"prune"}, root, strings.NewReader(""), &output, &output))
+	require.NoDirExists(t, profiles)
+}

@@ -17,6 +17,7 @@ import (
 	"controls/execution"
 
 	"controls/internal/comms"
+	"controls/internal/localresources"
 	"controls/internal/packagehash"
 	"controls/internal/sessions"
 )
@@ -105,6 +106,21 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 	stepID := execution.StepVisitID(work.ExecutionID, work.Step.ID, work.Visit)
 	directory := filepath.Join(r.Root, "executions", work.ExecutionID, stepID, fmt.Sprintf("try-%d", work.Try))
 	if err = os.MkdirAll(directory, 0700); err != nil {
+		return execution.StepResult{}, err
+	}
+	managedDirectory, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		return execution.StepResult{}, err
+	}
+	resources := localresources.Registry{Root: r.Root}
+	if err := resources.RecordPath("retained", managedDirectory); err != nil {
+		return execution.StepResult{}, err
+	}
+	profiles := filepath.Join(managedDirectory, "profiles")
+	if err := os.MkdirAll(profiles, 0700); err != nil {
+		return execution.StepResult{}, err
+	}
+	if err := resources.RecordPath("disposable", profiles); err != nil {
 		return execution.StepResult{}, err
 	}
 	skillDirectory := filepath.Join(directory, "control-plane-comms")
