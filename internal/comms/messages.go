@@ -38,6 +38,10 @@ func (s *Service) send(ctx context.Context, p Participant, args Send) (Receipt, 
 		if err := validateControlPayload(args.Payload); err != nil {
 			return Receipt{}, err
 		}
+		// Lifecycle observations are control traffic, never conversation broadcasts.
+		if args.Payload.Kind == "runtime_status" && (len(args.Recipients) != 1 || args.Recipients[0] != identity(p.ExecutionID+"/controller")) {
+			return Receipt{}, fault("invalid_argument", "runtime_status requires exactly one recipient: the assigned controller")
+		}
 		recipients := append([]string(nil), args.Recipients...)
 		if args.Recipients != nil && len(args.Recipients) == 0 {
 			return Receipt{}, fault("invalid_argument", "recipients cannot be empty")

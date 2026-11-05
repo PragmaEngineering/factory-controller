@@ -3,7 +3,7 @@
 ## CTRL-001 — Runtime lifecycle reports broadcast into agent conversations
 
 **Priority:** High
-**Status:** Open
+**Status:** Implemented — 2026-11-05
 
 ### Defect
 
@@ -36,6 +36,13 @@ Lifecycle reports describe runtime observations for completion recovery. They ar
 - Defensive filtering does not prevent later genuine messages from being delivered or acknowledged.
 - Regression tests include two simultaneously running adapter fixtures and prove bounded message counts with no lifecycle-induced turns.
 - Result acceptance, bounded completion recovery and ordinary peer/controller messages continue to work.
+
+### Implementation
+
+- Pi discovers one controller, addresses status reports explicitly, and filters lifecycle messages from native input without blocking cursor acknowledgments.
+- The communication service rejects omitted/empty/duplicate/extra lifecycle recipients before audience expansion or effects.
+- Regression coverage uses concurrent workers and two real adapter processes with fake native runtimes. Historical broadcasts cannot create model turns; genuine peer handoffs and accepted completion still work. Human audit visibility is retained without adding human recipients.
+- Source-only repair: no live execution was restarted, modified or resubmitted.
 
 ### Existing executions
 

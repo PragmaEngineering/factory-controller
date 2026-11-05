@@ -115,7 +115,7 @@ Private directories/files use `0700`/`0600`. The host runner inherits trusted se
 
 Native readiness is adapter-specific. A successful host launch proves only that the entrypoint started; it does not prove authentication, a loaded model or readiness to accept work. Do not expose a fabricated generic "ready" state. A native failure after launch becomes an invocation failure through the existing supervision path.
 
-See the full [communication contract](communications.md) and [resource protocol](resources.md). Lifecycle reports must describe observed busy/idle transitions and go only to the controller. **CTRL-001 remains open:** the current Pi bridge still has a lifecycle broadcast defect. Do not copy that behavior into a new adapter or claim enforced controller-only routing until it is fixed.
+See the full [communication contract](communications.md) and [resource protocol](resources.md). Lifecycle reports must describe observed busy/idle transitions and go only to the controller. The communication service enforces exactly one explicit controller recipient for `runtime_status`. Native delivery must filter lifecycle observations without stalling cursor acknowledgment. Reports remain available in audit history.
 
 ## Capability matrix
 
@@ -124,7 +124,7 @@ Capabilities are adapter implementation promises, not user-provided grants. Cont
 | Adapter | Operator input | Peer messages / idle delivery | Native lifecycle | Usage / tool events | Version support |
 |---|---|---|---|---|---|
 | Opaque `command` | Not advertised | Not advertised; concurrent loop rejected | Unavailable | Not advertised; a package may emit the generic protocol itself | No native version probe |
-| Pi | Native RPC steering | Implemented | Observed, with CTRL-001 routing defect | Translated from native events; missing price remains unknown | 1.0.3; incompatible requirements rejected |
+| Pi | Native RPC steering | Implemented | Observed; controller-only routing enforced | Translated from native events; missing price remains unknown | 1.0.3; incompatible requirements rejected |
 | Independent fixture (tests only) | Not implemented | MCP wait loop | Unavailable | Unavailable; no fabricated model counters | 1.0.0 |
 
 Do not claim concurrent support just because two processes can launch. Both must remain available for peer messages and supply independently accepted results. A runner that only supports batch completion needs an appropriate capability declaration and must not be used for an unsupported concurrent stage.

@@ -27,19 +27,21 @@ async function runSession(t, scenario, options = {}) {
     if (req.headers.authorization !== 'Bearer test-secret') { res.writeHead(401).end(); return; }
     const server = new McpServer({ name: 'fixture', version: '1' });
     const respond = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
-    server.registerTool('read_messages', { inputSchema: z.object({ thread_id: z.string(), after: z.string().optional(), ack_through: z.string().optional(), limit: z.number().optional() }) }, async () => respond({ messages: [], cursor: '0', more: false, closed: false }));
+    server.registerTool('list_participants', { inputSchema: z.object({ thread_id: z.string() }) }, async () => respond({participants:[{id:'controller',kind:'controller'}]}));
+    server.registerTool('read_messages' , { inputSchema: z.object({ thread_id: z.string(), after: z.string().optional(), ack_through: z.string().optional(), limit: z.number().optional() }) }, async () => respond({ messages: [], cursor: '0', more: false, closed: false }));
     server.registerTool('wait_for_message', { inputSchema: z.object({ thread_id: z.string(), after: z.string().optional(), wait_seconds: z.number().optional(), limit: z.number().optional() }) }, async args => {
       await new Promise(resolve => setTimeout(resolve, 20));
       const selected = messages.filter(item => item.sequence > Number(args.after || 0));
       return respond({ messages: selected, cursor: String(selected.at(-1)?.sequence || args.after || 0), more: false, closed: false });
     });
-    server.registerTool('send_message', { inputSchema: z.object({ operation_id: z.string(), thread_id: z.string(), payload: z.any() }) }, async args => {
+    server.registerTool('send_message', { inputSchema: z.object({ operation_id: z.string(), thread_id: z.string(), recipients: z.array(z.string()).optional(), payload: z.any() }) }, async args => {
       const data = args.payload.parts?.find(part => part.kind === 'data')?.data;
       if (args.payload.kind === 'step_result' && data?.artifacts?.some(item => typeof item === 'string')) {
         rejectedResults++;
         return { isError: true, content: [{ type: 'text', text: 'step_result.artifacts must be objects; normally omit artifacts' }], structuredContent: { error: { code: 'invalid_argument', message: 'artifacts must be objects' } } };
       }
       if (args.payload.kind === 'runtime_status') {
+        assert.deepEqual(args.recipients, ['controller']);
         lifecycle.push(data.state);
         if (messages.some(item => item.payload.kind === 'step_result')) {
           return { isError: true, content: [{ type: 'text', text: 'attempt already submitted its result' }], structuredContent: { error: { code: 'already_completed', message: 'attempt already submitted its result' } } };

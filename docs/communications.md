@@ -6,7 +6,7 @@
 
 See [native preparation and ownership](runtime-adapters.md) and the [runtime-boundary diagram](images/runtime-adapters.svg) for the launch path. The detailed communication diagram below describes protocol behavior; it does not imply every runner supports native idle/usage observations.
 
-**Known limitation — CTRL-001:** controller-only lifecycle routing is the intended contract. The current Pi bridge still broadcasts lifecycle reports; this defect is not fixed by runtime preparation. Ordinary correspondence and native lifecycle observations must remain distinct.
+Lifecycle reports are controller-only control traffic. The service rejects missing, empty, duplicated or additional recipients for `runtime_status`. Native adapters ignore lifecycle messages during model-input delivery, including historical broadcasts, while still advancing and acknowledging the cursor. Reports remain in audit history; operator audit access does not make them inbox correspondence.
 
 ## Boundaries
 

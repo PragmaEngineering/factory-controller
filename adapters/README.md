@@ -42,7 +42,7 @@ An accepted member result does not complete a concurrent loop. The engine waits 
 
 Configure its native MCP client with the provisioned endpoint and environment credential. Load the shared communication skill, accept the supplied assignment, and submit typed messages through the same eight tools. To deliver messages into an idle session, translate them into that runner's supported queued/steering input mechanism. Without automatic delivery, the agent can use `wait_for_message` itself. Do not run two competing delivery loops.
 
-Report `runtime_status` with exactly one data part containing `state: "busy"` or `state: "idle"` in the assigned control thread, addressed to its controller. Report native transitions rather than output silence. A runner without this capability has no idle-completion recovery; rejected-result recovery and ordinary invocation supervision still apply. Automatic incoming-message delivery never retries an outgoing result.
+Discover the assigned controller with `list_participants` and supply exactly that one recipient; omitted or extra recipients are rejected. Filter incoming lifecycle observations from model prompts, while advancing/acknowledging their cursor. Report `runtime_status` with exactly one data part containing `state: "busy"` or `state: "idle"` in the assigned control thread, addressed to its controller. Report native transitions rather than output silence. A runner without this capability has no idle-completion recovery; rejected-result recovery and ordinary invocation supervision still apply. Automatic incoming-message delivery never retries an outgoing result.
 
 No adapter chooses outcomes, workflow routes, or human authority. Deterministic programs can use an MCP SDK client without an agent skill. A runner that cannot remain available across idle turns needs an explicit continuation capability before it supports concurrent collaboration.
 
@@ -72,4 +72,4 @@ The Go controller supports `packages`, `type: "run"`, package-specific `with`, a
 
 ## Adding a native runner
 
-Follow [Adding an agent runtime](../docs/runtime-adapters.md) for the Go preparation port, selection/identity, capabilities, lifecycle ownership and runnable non-Pi conformance fixture. The native runner is separate from the `command` host execution mechanism. Pi provider/model overrides remain CTRL-005; lifecycle controller-only routing remains CTRL-001.
+Follow [Adding an agent runtime](../docs/runtime-adapters.md) for the Go preparation port, selection/identity, capabilities, lifecycle ownership and runnable non-Pi conformance fixture. The native runner is separate from the `command` host execution mechanism. Pi provider/model overrides remain CTRL-005; lifecycle controller-only routing is enforced.

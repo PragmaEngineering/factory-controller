@@ -109,7 +109,7 @@
 <text x="950" y="1683" font-size="18" fill="#52677c" font-weight="400">publication → files: explicit execution-files-relative names.</text>
 <text x="950" y="1711" font-size="18" fill="#52677c" font-weight="400">input_request → prompt; optional options; human + controller.</text>
 <text x="950" y="1739" font-size="18" fill="#52677c" font-weight="400">input_response → request_id + authorized human answer.</text>
-<text x="950" y="1767" font-size="18" fill="#52677c" font-weight="400">runtime_status → state: busy | idle; emitted by adapter.</text>
+<text x="950" y="1767" font-size="18" fill="#52677c" font-weight="400">runtime_status → busy | idle; controller-only audience.</text>
 <text x="950" y="1795" font-size="18" fill="#52677c" font-weight="400"></text>
 <text x="950" y="1823" font-size="18" fill="#52677c" font-weight="400">Ordinary message / progress: no terminal workflow effect.</text>
 <text x="950" y="1851" font-size="18" fill="#52677c" font-weight="400">Unknown application kinds cannot bypass reserved contracts.</text>
@@ -243,7 +243,7 @@
 <text x="88" y="4565" font-size="18" fill="#52677c" font-weight="400">Covered: exact malformed artifact array; strict envelope; required fields; idempotent acceptance; verified outputs.</text>
 <text x="88" y="4593" font-size="18" fill="#52677c" font-weight="400">Covered: persisted corrections; replay/concurrent-supervisor deduplication; restart-safe limits; busy/peer/human exemptions.</text>
 <text x="88" y="4621" font-size="18" fill="#52677c" font-weight="400">Covered: native incoming delivery, ordered lifecycle reports, steering, truncation bounds and visible provider failures.</text>
-<text x="88" y="4649" font-size="18" fill="#52677c" font-weight="400">Limits: CTRL-001 lifecycle routing open; unknown lifecycle is not idle; host processes are not sandboxed.</text>
+<text x="88" y="4649" font-size="18" fill="#52677c" font-weight="400">Lifecycle audience enforced; audit retained; unknown lifecycle is not idle; host processes are not sandboxed.</text>
 <text x="88" y="4677" font-size="18" fill="#52677c" font-weight="400">Deployment: rebuild/install binary and restart the service. Source edits do not update an already running service.</text>
 <text x="64" y="4780" font-size="21" fill="#087e83" font-weight="600">09 / LIVE MESSAGE EXCHANGE — SEQUENCE TRACE</text>
 <text x="64" y="4816" font-size="20" fill="#52677c" font-weight="400">Solid arrows are requests/actions. Dashed arrows return content. Reads use retained cursors; all lanes share one execution scope.</text>

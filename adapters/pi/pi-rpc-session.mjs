@@ -39,6 +39,16 @@ if (environment.FACTORY_COMMS_SKILL) argv.push('--skill', environment.FACTORY_CO
 prompt += `\n\nFactory connection: thread ${environment.FACTORY_THREAD_ID}; your participant ID is ${environment.FACTORY_PARTICIPANT_ID}. Automatic MCP message delivery is active. Use the factory MCP tools and loaded control-plane-comms skill. Final completion requires send_message with a step_result and effect.state=accepted. When waiting for a peer, end your turn with a short waiting status. The runtime keeps your session open and wakes it on messages; do not poll or wait using tools or shell loops. Automatic delivery handles incoming messages only; it does not retry rejected outgoing calls. Correct completion errors using the tool response; do not wait for delivery to resubmit a result.\n`;
 
 const client = await connect(environment, 'factory-pi-delivery');
+let controllerID;
+try {
+  const members = await tool('list_participants', { thread_id: environment.FACTORY_THREAD_ID });
+  const controllers = members.participants?.filter(member => member.kind === 'controller');
+  if (controllers?.length !== 1) throw new Error('Assigned thread must have one controller');
+  controllerID = controllers[0].id;
+} catch (error) {
+  await client.close();
+  throw error;
+}
 const child = spawn(environment.AGENT_EXECUTABLE || 'pi', [...argv, '--mode', 'rpc'], { stdio: ['pipe', 'pipe', 'inherit'], env: environment });
 let busy = false;
 let completed = false;
@@ -63,7 +73,7 @@ let statusQueue = Promise.resolve();
 let statusSequence = 0;
 const statusPrefix = randomUUID();
 function reportStatus(state) {
-  const args = { operation_id: `runtime-${statusPrefix}-${++statusSequence}`, thread_id: environment.FACTORY_THREAD_ID,
+  const args = { operation_id: `runtime-${statusPrefix}-${++statusSequence}`, thread_id: environment.FACTORY_THREAD_ID, recipients: [controllerID],
     payload: { kind: 'runtime_status', version: 1, parts: [{ kind: 'data', data: { state } }] } };
   statusQueue = statusQueue.then(async () => {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -171,6 +181,9 @@ while (!stopping && !completed) {
     const batch = await tool('wait_for_message', { thread_id: environment.FACTORY_THREAD_ID, after: cursor, wait_seconds: 20, limit: 50 });
     if (batch.closed) { stopping = true; child.kill('SIGTERM'); break; }
     for (const message of batch.messages) {
+      // Historical or misrouted observations must not wake a model. The batch
+      // cursor still advances and is acknowledged, so later messages flow.
+      if (message.payload.kind === 'runtime_status') continue;
       if (message.sender === environment.FACTORY_PARTICIPANT_ID) {
         if (message.payload.kind === 'step_result') { completed = true; finish(); }
         continue;
