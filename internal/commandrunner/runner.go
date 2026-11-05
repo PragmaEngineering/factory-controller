@@ -52,7 +52,7 @@ type Runner struct {
 }
 
 type settings struct {
-	With       map[string]json.RawMessage `json:"with,omitempty"`
+	Overrides  map[string]json.RawMessage `json:"overrides,omitempty"`
 	Entrypoint string                     `json:"entrypoint"`
 	Args       []string                   `json:"args"`
 }
@@ -120,10 +120,10 @@ func (r Runner) Run(ctx context.Context, work execution.Work) (execution.StepRes
 	}
 	inputsPath := filepath.Join(directory, "inputs.json")
 	configPath := filepath.Join(directory, "package-config.json")
-	if profile.With == nil {
-		profile.With = map[string]json.RawMessage{}
+	if profile.Overrides == nil {
+		profile.Overrides = map[string]json.RawMessage{}
 	}
-	for path, value := range map[string]any{inputsPath: bound, configPath: profile.With} {
+	for path, value := range map[string]any{inputsPath: bound, configPath: profile.Overrides} {
 		raw, err := json.MarshalIndent(value, "", "  ")
 		if err != nil {
 			return execution.StepResult{}, err

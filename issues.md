@@ -189,7 +189,7 @@ The launchers already changed into the configured source workspace. The generic 
 ## CTRL-005 — Version-aware runner adapters must apply per-agent factory overrides
 
 **Priority:** High
-**Status:** Open — CTRL-006 prerequisite implemented
+**Status:** Implemented
 **Prerequisite:** [CTRL-006](#ctrl-006--formalize-the-agent-runtime-adapter-boundary) owns the generic runtime boundary, preparation contract and conformance fixture. This issue implements Pi-specific override/version support against that contract.
 **Ownership:** Controls owns runner-specific translation and compatibility; Registry owns agent bundles and native defaults.
 
@@ -201,13 +201,13 @@ Passing arbitrary JSON to a package does not implement this behavior. Someone mu
 
 ### Current implementation and gap
 
-- [Package configuration](docs/packages.md) already supports a per-registration `with` object. Controls pins those values and passes them through the private `FACTORY_PACKAGE_CONFIG` file. It does not currently merge them into native runner configuration or expand credential references.
+- [Package configuration](docs/packages.md) already supports a per-registration `overrides` object. Controls pins those values and passes them through the private `FACTORY_PACKAGE_CONFIG` file. The explicit Pi adapter translates supported fields into a private native profile; generic packages retain their own schemas.
 - [Factory configuration loading](internal/factoryconfig/load.go) treats packages generically. The `agents` form is accepted shorthand for the same registration mechanism.
 - [Runtime adapters](adapters/README.md) already belong to Controls. The [Pi integration](adapters/pi/pi-rpc-session.mjs) handles native RPC sessions, communication and telemetry.
 - Registry agents contain their own Pi defaults and launchers. For example, [coder_golang](../registry/agents/coder_golang/start.sh) copies its bundled Pi profile into a private directory for a standalone invocation and invokes the managed adapter when Factory supplies communication settings. That does not establish a validated provider/model override contract.
-- There is currently no Go configuration-preparation package under `adapters/pi` establishing the version-aware resolution proposed here.
+- [Pi preparation](adapters/pi/prepare.go) owns native translation, supported-version validation, offline preflight and safe resolution metadata. The RPC bridge verifies actual launched selection before its first assignment.
 
-**Do not document factory-level Pi overrides as working until the launcher and adapter path demonstrably applies them.**
+Supported configuration, precedence and limitations are documented in [Pi overrides](docs/pi-overrides.md).
 
 ### Architectural boundary
 
@@ -224,9 +224,9 @@ Add Go configuration preparation under `adapters/pi`, with clear responsibilitie
 
 The existing JavaScript Pi session integration may remain where native Pi APIs make it appropriate. This issue does not require rewriting it in Go. Define one owner for each preparation task, including MCP injection, so Go preparation and the session adapter cannot apply competing profile mutations.
 
-### Proposed factory configuration
+### Factory configuration
 
-Use the existing package-level `with` mechanism for overrides rather than introducing an unrelated root-level provider defaults block. Example of the intended **proposed behavior**, not a currently implemented configuration contract:
+Use the existing package-level `overrides` mechanism for overrides rather than introducing an unrelated root-level provider defaults block. Implemented configuration fragment:
 
 ```json
 {
@@ -235,22 +235,23 @@ Use the existing package-level `with` mechanism for overrides rather than introd
       "name": "builder",
       "path": "../registry/agents/coder_golang",
       "entrypoint": "start.sh",
-      "with": {
+      "runtime": {"name":"pi","version":"=1.0.3"},
+      "overrides": {
         "provider": "corporate-gateway",
         "model": "coding-model",
         "base_url": "https://ai.example.com/v1",
         "api": "openai-completions",
         "api_key_env": "CORPORATE_AI_KEY",
-        "thinking": "medium"
+        "thinking": "medium",
+        "model_config": {"reasoning":true,"context_window":128000,"max_tokens":8192}
       }
     },
     {
       "name": "reviewer",
       "path": "../registry/agents/code_reviewer_golang",
       "entrypoint": "start.sh",
-      "with": {
-        "provider": "review-provider",
-        "model": "review-model",
+      "runtime": {"name":"pi","version":"=1.0.3"},
+      "overrides": {
         "api_key_env": "REVIEW_AI_KEY"
       }
     }
@@ -258,9 +259,9 @@ Use the existing package-level `with` mechanism for overrides rather than introd
 }
 ```
 
-`api` identifies the native API protocol, not the provider's display name. The example protocol spelling must be checked against the supported Pi version before implementation. Provider endpoint and credential references must be resolved coherently with the selected model's native definition.
+`api` identifies the native API protocol, not the provider's display name. The supported protocol spellings and native mappings are documented in [Pi overrides](docs/pi-overrides.md). Provider endpoint and credential references must be resolved coherently with the selected model's native definition.
 
-**Adapter selection is defined by CTRL-006 and must be explicit and documented.** Do not infer Pi from package names, roles, file names or the existence of `models.json`. CTRL-006 must settle where the package declares its runner and compatibility requirements and how the launcher requests adapter preparation. A package-level runtime descriptor or an explicit package entrypoint-to-adapter contract are possible approaches; no additional JSON keys are approved by this example. Factory overrides must not silently change the agent's runner.
+Adapter selection is explicit through `runtime.name`; do not infer it from roles, paths or native files. Pi initially supports only tested version 1.0.3.
 
 ### Resolution semantics
 
@@ -274,7 +275,7 @@ Use the existing package-level `with` mechanism for overrides rather than introd
 8. Apply overrides before credential/model preflight and before starting a model session. Preflight and launch must inspect the same resolved profile and executable.
 9. Unsupported settings, malformed values, missing credentials and incompatible provider/model combinations produce concise, classified errors naming the relevant configuration field. No fallback to bundled OpenRouter settings or a globally configured provider after an explicit override fails.
 
-Packages may use `with` for other purposes. Strict validation belongs to the selected package/adapter schema; a generic package must not be forced into a Pi or LLM schema. Separate adapter-owned settings from any package-specific settings explicitly if both share the object.
+Packages may use `overrides` for other purposes. Strict validation belongs to the selected package/adapter schema; a generic package must not be forced into a Pi or LLM schema. Separate adapter-owned settings from any package-specific settings explicitly if both share the object.
 
 ### Version compatibility
 
@@ -347,6 +348,16 @@ Include a compact capability matrix for existing adapters, with unsupported and 
 
 No workflow redesign, role-specific adapter packages, global provider defaults, automatic Pi upgrades, Pi <1 support, speculative Pi 2 support, new secret manager, container runtime, or unrestricted native JSON patching. No changes to active executions are authorized by recording this issue.
 
+
+### Implementation record
+
+- Replaced package `with` with `overrides` throughout active Controls/Registry configuration, examples and documentation. Unknown authored fields are rejected; no compatibility alias.
+- Added a finite Pi schema and invocation-private native translation, credential-reference precedence, offline native RPC preflight and actual-session verification before assignment. No global provider defaults or changes to bundle files.
+- Added safe native resolution metadata and same-visit retry fencing for changed runner/adapter versions. Pi 1.0.3 remains the sole supported release.
+- Added schema, malformed/unsupported configuration, private credential/profile, concurrent preparation, prepared-process launch, actual-session conflict and retry regression tests. Existing non-Pi conformance coverage remains independent of Pi.
+- Updated [factory.example.json](factory.example.json), [Pi configuration guide](docs/pi-overrides.md), contributor documentation, Registry docs and published architecture references.
+- Native smoke verification uses installed Pi 1.0.3 in offline mode and asserts zero provider requests. No paid model calls, live eval, production service restart or commits.
+- Verification passed: `go test ./...`, `go vet ./...`, race tests for adapters/command runner/sessions, Controls npm tests (12 passed), Registry tests (30 passed; optional installed-skill-loader test skipped). The separate installed-Pi override smoke check passed.
 
 ## CTRL-006 — Formalize the agent runtime adapter boundary
 

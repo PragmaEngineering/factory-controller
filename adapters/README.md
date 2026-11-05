@@ -68,8 +68,10 @@ Other runners may emit the same versioned, newline-delimited protocol without de
 
 ## Generic package inputs
 
-The Go controller supports `packages`, `type: "run"`, package-specific `with`, and named `input_bindings`. It supplies private JSON files through `FACTORY_INPUTS_PATH` and `FACTORY_PACKAGE_CONFIG`; an LLM assignment at `FACTORY_PROMPT_PATH` also contains the bound JSON. The Pi adapter reads that prompt file when no explicit `-p` was supplied. Classification bundles use the same MCP completion contract and need no Pi runtime. See [package bindings](../docs/packages.md).
+The Go controller supports `packages`, `type: "run"`, package-specific `overrides`, and named `input_bindings`. It supplies private JSON files through `FACTORY_INPUTS_PATH` and `FACTORY_PACKAGE_CONFIG`; an LLM assignment at `FACTORY_PROMPT_PATH` also contains the bound JSON. The Pi adapter reads that prompt file when no explicit `-p` was supplied. Classification bundles use the same MCP completion contract and need no Pi runtime. See [package bindings](../docs/packages.md).
 
 ## Adding a native runner
 
-Follow [Adding an agent runtime](../docs/runtime-adapters.md) for the Go preparation port, selection/identity, capabilities, lifecycle ownership and runnable non-Pi conformance fixture. The native runner is separate from the `command` host execution mechanism. Pi provider/model overrides remain CTRL-005; lifecycle controller-only routing is enforced.
+Follow [Adding an agent runtime](../docs/runtime-adapters.md) for the Go preparation port, selection/identity, capabilities, lifecycle ownership and runnable non-Pi conformance fixture. The native runner is separate from the `command` host execution mechanism. Pi supports [per-package overrides](../docs/pi-overrides.md); lifecycle controller-only routing is enforced.
+
+Pi implements [per-package overrides](../docs/pi-overrides.md). An optional side-effect-free `Validator` rejects unsupported settings before execution persistence; host-dependent preparation remains in `Prepare`.

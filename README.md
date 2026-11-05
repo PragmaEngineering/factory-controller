@@ -65,3 +65,5 @@ Read the [factory.json format](docs/factory-json.md), [execution contract](docs/
 Execution documents are separate from project source. Configure `factory_dir` (default `.factory`) and use explicit frozen references to pass execution paths to commands. See [execution files and variables](docs/execution-files.md).
 
 To integrate another native agent runner, see [Adding an agent runtime](docs/runtime-adapters.md). It defines preparation ownership, explicit runner selection, capabilities, compatibility and the non-Pi conformance test. Adding a role for an existing runner needs no new adapter.
+
+For per-agent provider, model, endpoint and credential selection, see [Pi package overrides](docs/pi-overrides.md).

@@ -28,7 +28,7 @@ Add the configured runtime directory to the project's `.gitignore`; for the defa
 
 Variable names match `[A-Za-z_][A-Za-z0-9_]*`. Variables may reference other variables; cycles, undefined names, unknown namespaces, unterminated references and NUL bytes fail before execution starts. `$${` emits literal `${`. Ordinary dollar signs are literal. Values are inserted once, never evaluated as shell code or recursively interpreted after insertion. No implicit environment-variable expansion occurs.
 
-References are supported in package `path`, `entrypoint`, `args`, and hook `command`/`arguments` at execution, stage and step boundaries. They are not evaluated inside prompts, routes, output names or opaque package `with` settings. `{prompt}` remains the command runner's separate assignment substitution. The literal `factory_dir` cannot depend on execution variables.
+References are supported in package `path`, `entrypoint`, `args`, and hook `command`/`arguments` at execution, stage and step boundaries. They are not evaluated inside prompts, routes, output names or opaque package `overrides` settings. `{prompt}` remains the command runner's separate assignment substitution. The literal `factory_dir` cannot depend on execution variables.
 
 `LoadExecution` binds the configuration once with its allocated execution ID. The database stores the bound values, arguments, storage paths and configuration digest. Retries use those records. Do not put secret values in variables: configuration and command arguments are recorded. Existing provider credential references remain supported by their native bundles.
 

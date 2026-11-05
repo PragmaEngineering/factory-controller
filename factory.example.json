@@ -19,6 +19,22 @@
       "runtime": {
         "name": "pi",
         "version": "=1.0.3"
+      },
+      "overrides": {
+        "provider": "corporate",
+        "model": "coding-model",
+        "base_url": "https://ai.example.com/v1",
+        "api": "openai-completions",
+        "api_key_env": "CORPORATE_AI_KEY",
+        "thinking": "medium",
+        "model_config": {
+          "reasoning": true,
+          "context_window": 128000,
+          "max_tokens": 8192,
+          "input": [
+            "text"
+          ]
+        }
       }
     },
     {
@@ -33,6 +49,9 @@
       "runtime": {
         "name": "pi",
         "version": "=1.0.3"
+      },
+      "overrides": {
+        "api_key_env": "REVIEW_AI_KEY"
       }
     }
   ],

@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -48,4 +49,6 @@ type RuntimeIdentity struct {
 	AdapterVersion string              `json:"adapter_version"`
 	Executable     string              `json:"executable,omitempty"`
 	Capabilities   RuntimeCapabilities `json:"capabilities"`
+	// Configuration is adapter-owned audit metadata; it must contain no credential values.
+	Configuration map[string]json.RawMessage `json:"configuration,omitempty"`
 }

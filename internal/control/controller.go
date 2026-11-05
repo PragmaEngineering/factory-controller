@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"controls/adapters"
 	"controls/execution"
 	"controls/internal/comms"
 	"controls/internal/factoryconfig"
@@ -20,6 +21,7 @@ import (
 )
 
 type Controller struct {
+	Adapters adapters.Registry
 	Comms    *comms.Service
 	Store    *Store
 	Sessions *sessions.Manager
@@ -44,6 +46,11 @@ func (c *Controller) Exec(ctx context.Context, request ExecRequest) (Execution, 
 	config, err := factoryconfig.LoadExecution(request.ConfigPath, id)
 	if err != nil {
 		return Execution{}, err
+	}
+	if c.Adapters != nil {
+		if err := c.Adapters.Validate(config.Configuration.Packages); err != nil {
+			return Execution{}, err
+		}
 	}
 	executionDirectory := filepath.Dir(config.Configuration.FilesDir)
 	if err := os.MkdirAll(config.Configuration.FilesDir, 0700); err != nil {

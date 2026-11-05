@@ -32,16 +32,16 @@ func (Adapter) Prepare(ctx context.Context, request adapters.Request) (adapters.
 		return adapters.Prepared{}, fmt.Errorf("fixture uses its package entrypoint as executable")
 	}
 	var settings struct {
-		With json.RawMessage `json:"with"`
+		Overrides json.RawMessage `json:"overrides"`
 	}
 	if err := json.Unmarshal(request.Package.Settings, &settings); err != nil {
 		return adapters.Prepared{}, err
 	}
-	if len(settings.With) == 0 {
-		settings.With = json.RawMessage(`{}`)
+	if len(settings.Overrides) == 0 {
+		settings.Overrides = json.RawMessage(`{}`)
 	}
 	config := filepath.Join(request.InvocationDir, "fixture-config.json")
-	if err := os.WriteFile(config, settings.With, 0600); err != nil {
+	if err := os.WriteFile(config, settings.Overrides, 0600); err != nil {
 		return adapters.Prepared{}, err
 	}
 	command := append([]string{path}, request.Command[1:]...)

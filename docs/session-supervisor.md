@@ -8,7 +8,7 @@ The CLI exposes `factory SESSION-ID`, `logs`, `messages`, `send`, and `attach`. 
 
 The [runtime preparation contract](runtime-adapters.md) runs before the supervisor starts a package. The command runner selects the explicitly declared adapter, checks required capabilities and creates private invocation context. The adapter prepares native launch settings; the supervisor receives the prepared command and environment but does not interpret native configuration files.
 
-`runner: "command"` identifies local host execution. The separate `runtime` object records native name, version, adapter version, executable and capabilities. Missing native identity on an older/direct session is not proof of Pi support. The selected Pi adapter currently accepts Pi 1.0.3, copies the agent's native defaults into the invocation profile, and rejects factory-level `with` overrides pending CTRL-005. The Registry entrypoint reuses that profile and still owns workspace/role setup; the JavaScript bridge alone injects MCP configuration.
+`runner: "command"` identifies local host execution. The separate `runtime` object records native name, version, adapter version, executable and capabilities. Missing native identity on an older/direct session is not proof of Pi support. The selected Pi adapter currently accepts Pi 1.0.3, copies the agent's native defaults into the invocation profile, and applies supported [per-package overrides](pi-overrides.md) before native preflight and assignment. The Registry entrypoint reuses that profile and still owns workspace/role setup; the JavaScript bridge alone injects MCP configuration.
 
 Concurrent stages require an adapter with peer messaging and idle delivery. A launched process is not proof of native readiness or successful authentication. Unsupported capabilities and version mismatches fail before package launch. See the [capability matrix](runtime-adapters.md#capability-matrix) and [ownership diagram](images/runtime-adapters.svg).
 
@@ -54,3 +54,5 @@ Executable steps can define an optional `budget` with token, elapsed-time, and i
 ## Lifecycle hooks
 
 Optional `hooks.before` and `hooks.after` objects run trusted utilities at execution, stage, or step boundaries. See the [hook contract](hooks.md) for configuration, JSON stdin, ordering, failure recovery, and the Registry Git example. Hook operations are separate from agent completion and do not require agent-specific integration.
+
+Native Pi override resolution is recorded in `runtime.configuration` without credential values. Retrying the same step visit with a different native version/name or adapter revision is rejected. See [Pi overrides](pi-overrides.md).

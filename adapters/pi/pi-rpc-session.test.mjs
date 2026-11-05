@@ -72,8 +72,12 @@ const client = new Client({name:'fake-pi',version:'1'});
 await client.connect(new StreamableHTTPClientTransport(new URL(process.env.FACTORY_MCP_URL),{requestInit:{headers:{Authorization:'Bearer '+process.env.FACTORY_MCP_TOKEN}}}));
 let turns=0;
 for await (const line of createInterface({input:process.stdin})) {
-  turns++;
   const request=JSON.parse(line);
+  if(request.type==='get_state') {
+    console.log(JSON.stringify({type:'response',id:request.id,success:true,data:{model:{provider:'corporate',id:${JSON.stringify(options.mismatch ? 'wrong-model' : 'coding-v1')},api:'openai-completions',baseUrl:'https://corporate.example/v1',headers:{Authorization:'native-private-header'}},thinkingLevel:'medium'}}));
+    continue;
+  }
+  turns++;
   console.log(JSON.stringify({type:'response',command:'prompt',success:true,id:request.id}));
   console.log(JSON.stringify({type:'tool_execution_start',input:request.message,mode:request.streamingBehavior || 'initial',cwd:process.cwd()}));
   if (${JSON.stringify(Boolean(options.workspaceFiles))}) {
@@ -103,7 +107,7 @@ await client.close();
   const args = options.promptFile ? [] : ['-p', 'initial work'];
   const child = spawn(process.execPath, [join(import.meta.dirname, 'pi-rpc-session.mjs'), ...args], {
     cwd: options.workingDirectory,
-    env: { ...process.env, ...(options.promptFile ? { FACTORY_PROMPT_PATH: promptPath } : {}), AGENT_EXECUTABLE: fake, PI_CODING_AGENT_DIR: profile, FACTORY_MCP_URL: url, FACTORY_MCP_TOKEN: 'test-secret', FACTORY_THREAD_ID: 'thread', FACTORY_PARTICIPANT_ID: 'worker', FACTORY_COMMS_SKILL: root, FACTORY_PI_CONTINUATION_LIMIT: scenario === 'no-recovery' ? '0' : '2' },
+    env: { ...process.env, ...(options.verify ? { FACTORY_PI_EXPECTED_CONFIG: JSON.stringify({provider:"corporate",model:"coding-v1",api:"openai-completions",base_url:"https://corporate.example/v1",thinking:"medium"}) } : {}), ...(options.promptFile ? { FACTORY_PROMPT_PATH: promptPath } : {}), AGENT_EXECUTABLE: fake, PI_CODING_AGENT_DIR: profile, FACTORY_MCP_URL: url, FACTORY_MCP_TOKEN: 'test-secret', FACTORY_THREAD_ID: 'thread', FACTORY_PARTICIPANT_ID: 'worker', FACTORY_COMMS_SKILL: root, FACTORY_PI_CONTINUATION_LIMIT: scenario === 'no-recovery' ? '0' : '2' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   t.after(() => child.kill('SIGKILL'));
@@ -118,11 +122,19 @@ await client.close();
   });
   child.stderr.on('data', chunk => { error += chunk; });
   const code = await new Promise(resolve => child.on('close', resolve));
-  const records = output.trim().split('\n').map(JSON.parse);
+  const records = output.trim().split('\n').filter(Boolean).map(JSON.parse);
   const turns = records.filter(item => item.type === 'tool_execution_start');
   if (options.workingDirectory) {
     assert.equal(turns[0].cwd, realpathSync(options.workingDirectory));
     assert(turns[0].input.includes('Source workspace (actual process working directory): '+JSON.stringify(realpathSync(options.workingDirectory))));
+  }
+  assert(!output.includes('native-private-header'), 'configuration RPC must not expose native headers');
+  if (options.mismatch) {
+    assert.equal(code, 1);
+    assert.equal(turns.length, 0, 'conflicting native settings must fail before a model prompt');
+    assert.match(error, /configuration/);
+    assert.equal(lifecycle.length, 0);
+    return;
   }
   if (['peer', 'recover', 'completion-repair'].includes(scenario)) {
     assert.equal(code, 0, error);
@@ -190,6 +202,11 @@ for (const [scenario, description] of Object.entries({
 }
 
 test("managed Pi package reads its Factory prompt file without Pi-specific factory arguments", async t => { await runSession(t, "recover", { promptFile: true }); });
+
+
+test('actual native selection is verified before assignment', t => runSession(t, 'recover', {verify:true}));
+test('conflicting actual native selection blocks without a model prompt', t => runSession(t, 'recover', {verify:true,mismatch:true}));
+
 
 test('native source context follows launcher cwd while evidence uses execution storage', async t => {
   const root=mkdtempSync(join(tmpdir(),'factory-workspace-'));

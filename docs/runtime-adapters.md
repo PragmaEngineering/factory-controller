@@ -58,7 +58,7 @@ This is a fragment; `variables.workspace` must be defined by the factory. Paths 
 
 The host `runner` remains `command` in session records; `runtime` records native name, detected version, adapter contract version, resolved executable and capabilities separately. Native metadata is persisted with the session's existing JSON record; no additional database schema is required. A recovered existing session retains its recorded identity rather than being prepared or launched again.
 
-`with` remains package-specific JSON at `FACTORY_PACKAGE_CONFIG`. Pi **does not yet implement provider/model overrides** and rejects nonempty `with` when selected explicitly. CTRL-005 owns that translation. Do not assume selecting a runner implements override fields.
+`overrides` remains package/runtime-specific JSON at `FACTORY_PACKAGE_CONFIG`. Pi implements a finite [provider/model/credential override schema](pi-overrides.md), with native offline preflight and actual-session verification before assignment. Other adapters define their own supported schema.
 
 ## Preparation interface
 
@@ -67,6 +67,8 @@ Implement `adapters.Adapter`:
 - `Name()` identifies the explicitly selected native adapter.
 - `Capabilities()` reports implemented behavior without launching a program or contacting a provider.
 - `Prepare(ctx, Request)` validates host-dependent prerequisites and returns `Prepared` launch details.
+
+Optionally implement `adapters.Validator` for side-effect-free schema/argument checks before execution persistence. Runtime-specific schemas remain in their adapters. Native executable, credential and capability resolution still happen during preparation.
 
 `Request` supplies the pinned package (including native requirement/settings), original package command, execution/step/visit/attempt identity, configuration/project directory, private invocation directory, execution-files directory and explicit prompt/input/config paths. The adapter may generate configuration from the native defaults, use arguments instead, or both. It must not require every runner to have Pi-style JSON profiles.
 
@@ -97,9 +99,9 @@ For Pi, a selected managed profile is reused by the Registry entrypoint. Standal
 
 Use an explicit supported range in the native adapter and intersect it with the package's requested range. The Pi preparer accepts the currently tested `1.0.3` release; extending that range requires compatibility evidence. Pi below 1 and Pi 2 are unsupported. Version detection uses `--version`, accepts a bare semantic version, and times out after five seconds. The probe receives only PATH, home and temporary-directory environment settings, not service provider/engine credentials. Runners with banners or a different version interface need a native parser/probe, not changes to the generic scheduler.
 
-Resolve the executable once and pass the exact absolute path into the launch path. Do not probe one `pi` and subsequently launch another via a different `PATH`. Version requirements are pinned; installed executable bytes are not vendored or frozen. New attempts probe again and record their actual runtime identity. No automatic upgrade occurs. Historical identity remains available to compare attempts.
+Resolve the executable once and pass the exact absolute path into the launch path. Do not probe one `pi` and subsequently launch another via a different `PATH`. Version requirements are pinned; installed executable bytes are not vendored or frozen. New attempts probe again and record their actual runtime identity. A retry of the same step visit rejects changes to native name/version or adapter revision; use a new execution. No automatic upgrade occurs. Historical identity remains available to compare attempts.
 
-Native defaults may contain credential environment references. The service environment, not the submitting terminal's environment, reaches the process. This task does not add credential remapping or provider/model overrides. An adapter implementing those later must validate reference names and native precedence, fail before provider calls when credentials are missing, and keep values out of prompts, logs, errors and persisted metadata.
+Native defaults may contain credential environment references. The service environment, not the submitting terminal's environment, reaches the process. Pi overrides validate credential reference names and native precedence before a model prompt. Values remain process-only; safe resolution metadata is persisted separately. See [Pi overrides](pi-overrides.md) for the precise precedence and preflight limits.
 
 Private directories/files use `0700`/`0600`. The host runner inherits trusted service privileges and rejects access grants it cannot enforce. A private profile, a capability declaration and a changed directory are **not sandboxing**.
 
@@ -143,7 +145,7 @@ npm test
 
 The integration test builds the Go worker, starts private PostgreSQL and a scoped loopback MCP service, registers the fixture in a test-only adapter registry and drives the actual command runner/session supervisor. It covers configured fixture settings, recorded native identity, accepted completion, native failure, cancellation, concurrent peer communication, distinct invocation directories/configs and unsupported-capability rejection. It does not start the production service or submit a user workflow. Embedded PostgreSQL binaries must be available locally or downloadable on the first test run. No paid provider requests occur.
 
-The fixture registration is `adapters.Registry{"command": adapters.Command{}, "fixture": conformance.Adapter{}}`. Its package selects `runtime: {"name":"fixture","version":"=1.0.0"}` and `with: {"mode":"complete","message":"configured fixture"}`. `peer`, `wait` and `fail` modes exercise their named lifecycle cases. Production does not register `fixture`; these examples run through the conformance test, not an undocumented production CLI option.
+The fixture registration is `adapters.Registry{"command": adapters.Command{}, "fixture": conformance.Adapter{}}`. Its package selects `runtime: {"name":"fixture","version":"=1.0.0"}` and `overrides: {"mode":"complete","message":"configured fixture"}`. `peer`, `wait` and `fail` modes exercise their named lifecycle cases. Production does not register `fixture`; these examples run through the conformance test, not an undocumented production CLI option.
 
 ## Contributor checklist
 
@@ -167,7 +169,7 @@ The fixture registration is `adapters.Registry{"command": adapters.Command{}, "f
 | `runtime executable "PATH" unavailable` | Install/select the native executable on the execution host. |
 | `runtime version … does not satisfy …` | Use a supported installed version and compatible package requirement. |
 | `invalid pi profile …` | Correct the bundle's native JSON; Controls does not guess missing configuration. |
-| `pi runtime does not yet support with overrides (CTRL-005)` | Use native bundled defaults until override support is implemented. |
+| `pi overrides.… (invalid_config)` | Correct the finite [Pi override schema](pi-overrides.md); arbitrary native patches are rejected. |
 | Native preflight authentication/MCP error | Inspect the resolved private profile and service environment references without printing credentials. |
 | Session ended without an accepted result | Inspect native output and result receipts; process exit is not accepted completion. |
 

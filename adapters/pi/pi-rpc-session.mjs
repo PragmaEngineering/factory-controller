@@ -111,14 +111,17 @@ child.stdout.on('data', chunk => {
     if (end < 0) break;
     const line = buffer.subarray(0, end + 1);
     buffer = buffer.subarray(end + 1);
-    process.stdout.write(line);
+    // Configuration RPC may include native headers; publish only safe Go audit metadata.
+    let configurationReply = false;
+    try { const record = JSON.parse(line.toString('utf8')); configurationReply = record.type === 'response' && String(record.id || '').startsWith('factory-config-'); } catch {}
+    if (!configurationReply) process.stdout.write(line);
     try {
       const record = JSON.parse(line.toString('utf8'));
       const metric = telemetry(record);
       if (metric) process.stdout.write(JSON.stringify({ type: 'factory.telemetry.v1', sequence: ++telemetrySequence, ...metric }) + '\n');
-      if (record.type === 'response' && record.command === 'prompt' && pending.has(record.id)) {
+      if (record.type === 'response' && pending.has(record.id)) {
         const waiter = pending.get(record.id); pending.delete(record.id);
-        if (record.success === false) waiter.reject(new Error(record.error || 'Pi rejected input')); else waiter.resolve();
+        if (record.success === false) waiter.reject(new Error(record.error || 'Pi rejected input')); else waiter.resolve(record.data);
       }
       if (record.type === 'message_end' && record.message?.role === 'assistant') {
         lastAssistantStop = { reason: record.message.stopReason, error: record.message.errorMessage };
@@ -156,6 +159,27 @@ child.on('close', code => {
 });
 process.on('SIGTERM', () => { stopping = true; child.kill('SIGTERM'); });
 process.on('SIGINT', () => { stopping = true; child.kill('SIGINT'); });
+// Verify the actual launched session before sending any assignment/model prompt.
+// Project-local settings or extension startup must not undo factory overrides.
+if (environment.FACTORY_PI_EXPECTED_CONFIG) {
+  try {
+    const expected = JSON.parse(environment.FACTORY_PI_EXPECTED_CONFIG);
+    const state = await new Promise((resolve, reject) => {
+      const id = `factory-config-${++nextID}`;
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error('native configuration verification timed out')); }, 10000);
+      pending.set(id, { resolve: data => { clearTimeout(timer); resolve(data); }, reject: () => { clearTimeout(timer); reject(new Error('native configuration verification failed')); } });
+      child.stdin.write(JSON.stringify({ id, type: 'get_state' }) + '\n');
+    });
+    const actual = { provider: state?.model?.provider, model: state?.model?.id, api: state?.model?.api, base_url: state?.model?.baseUrl, thinking: state?.thinkingLevel };
+    for (const [field, value] of Object.entries(expected)) {
+      if (value && actual[field] !== value) throw new Error(`native configuration differs from overrides.${field}`);
+    }
+  } catch {
+    // A native error can include configuration or credentials; do not echo it.
+    failSession('native configuration verification failed');
+    throw new Error('Factory Pi configuration verification failed');
+  }
+}
 await send(prompt, false);
 
 // Read acknowledgment follows successful handoff to Pi. Retries retain the

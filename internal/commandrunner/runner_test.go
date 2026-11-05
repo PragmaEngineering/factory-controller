@@ -164,7 +164,7 @@ func TestBoundJSONAndPackageSettingsReachTheWorker(t *testing.T) {
 	work.Step.InputBindings = map[string]execution.InputBinding{"task": {Execution: "input"}, "evaluation_response": {Step: "evaluate", Output: "response"}}
 	work.Brief = "Investigate a timeout"
 	work.History = []execution.CompletedStep{{Step: "evaluate", Visit: 1, Result: execution.StepResult{Data: map[string]json.RawMessage{"response": json.RawMessage(`{"answers":{"readiness":{"choice":"clarify"}}}`)}}}}
-	work.Package.Settings = json.RawMessage(`{"entrypoint":"run.sh","with":{"model":"pinned","api_key_env":"MY_KEY"}}`)
+	work.Package.Settings = json.RawMessage(`{"entrypoint":"run.sh","overrides":{"model":"pinned","api_key_env":"MY_KEY"}}`)
 	communication := &testCommunication{connection: comms.Connection{New: true, URL: "http://localhost/mcp", ThreadID: "thread", ParticipantID: "worker"}}
 	host := &testSessionHost{launch: func(args sessions.Launch) {
 		var values map[string]json.RawMessage

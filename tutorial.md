@@ -28,7 +28,7 @@ cd hello-go
 
 Run Factory from this project root. Commands initially start beside `factory.json`; source work stays in the launcher-selected workspace. Workflow documents and review evidence go to `.factory/executions/<execution-id>/files/`. When using Git, add `.factory/` to `.gitignore`.
 
-Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent. `runtime` explicitly selects the Pi adapter and pins its tested 1.0.3 version requirement; install that version on the execution host. Controls prepares a private native profile, while each entrypoint retains its workspace and role/skill setup. Factory-level provider/model overrides are not implemented yet; use the agent bundle’s native defaults. See [runtime setup and capabilities](docs/runtime-adapters.md).
+Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent. `runtime` explicitly selects the Pi adapter and pins its tested 1.0.3 version requirement; install that version on the execution host. Controls prepares a private native profile, while each entrypoint retains its workspace and role/skill setup. Use per-agent `overrides` to select provider, model, endpoint and credential environment name without editing the bundled native defaults; see [Pi overrides](docs/pi-overrides.md). See [runtime setup and capabilities](docs/runtime-adapters.md).
 
 ```json
 {
@@ -106,7 +106,7 @@ Create `factory.json` in `hello-go` with this content. The four `path` values as
 
 The `agents` list selects packages; `workflow` defines order, routes, review-loop limits, and human decisions. Edit those fields to customize this project. The complete format is in the [factory.json reference](docs/factory-json.md).
 
-The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTER_API_KEY` in the environment **before starting Factory**; the local service and agents inherit it. Keep credentials out of `factory.json`. For a different provider or model, edit each agent package's native Pi configuration (`pi/models.json` and `pi/settings.json`) and supply that provider's credentials. `factory.json` selects packages; it does not override their native model settings. The local runner executes trusted agent packages with your user permissions.
+The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTER_API_KEY` in the environment **before starting Factory**; the local service and agents inherit it. Keep credentials out of `factory.json`. For a different provider or model, set that agent registration's `overrides` in `factory.json` and supply its credential environment variable to the service. See [Pi overrides](docs/pi-overrides.md) for the schema and custom-model metadata. The local runner executes trusted agent packages with your user permissions.
 
 ## 3. Run and watch the execution
 

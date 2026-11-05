@@ -110,6 +110,15 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 			return Session{}, fmt.Errorf("invalid environment name %q", name)
 		}
 	}
+	if request.Runtime != nil && request.Try > 1 && request.ExecutionID != "" {
+		previous, err := m.List(request.ExecutionID)
+		if err != nil {
+			return Session{}, err
+		}
+		if err := validateRetryRuntime(previous, request); err != nil {
+			return Session{}, err
+		}
+	}
 	id, token := uuid.NewString(), uuid.NewString()
 	command := exec.Command(request.Command[0], request.Command[1:]...)
 	command.Dir = directory

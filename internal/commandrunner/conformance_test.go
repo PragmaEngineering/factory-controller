@@ -50,7 +50,7 @@ func TestRuntimeConformance(t *testing.T) {
 		source := filepath.Join(project, "agent")
 		require.NoError(t, os.Mkdir(source, 0700))
 		require.NoError(t, os.WriteFile(filepath.Join(source, "worker"), worker, 0700))
-		definition := map[string]any{"name": "conformance", "packages": []any{map[string]any{"name": "worker", "path": "agent", "entrypoint": "worker", "runtime": map[string]any{"name": "fixture", "version": "=1.0.0"}, "with": map[string]any{"mode": mode, "message": "configured fixture"}}}, "workflow": map[string]any{"start": "work", "steps": []any{map[string]any{"name": "work", "type": "run", "package": "worker", "on": map[string]string{"ready": "$done"}}}}}
+		definition := map[string]any{"name": "conformance", "packages": []any{map[string]any{"name": "worker", "path": "agent", "entrypoint": "worker", "runtime": map[string]any{"name": "fixture", "version": "=1.0.0"}, "overrides": map[string]any{"mode": mode, "message": "configured fixture"}}}, "workflow": map[string]any{"start": "work", "steps": []any{map[string]any{"name": "work", "type": "run", "package": "worker", "on": map[string]string{"ready": "$done"}}}}}
 		raw, err := json.Marshal(definition)
 		require.NoError(t, err)
 		file := filepath.Join(project, "factory.json")
@@ -163,7 +163,7 @@ exec %s "$@"
 		critic := author
 		critic.Step.ID = "critic"
 		critic.Package.Name = "critic"
-		critic.Package.Settings = json.RawMessage(`{"entrypoint":"worker","with":{"mode":"peer","message":"critic configuration"}}`)
+		critic.Package.Settings = json.RawMessage(`{"entrypoint":"worker","overrides":{"mode":"peer","message":"critic configuration"}}`)
 		peers := []execution.Peer{{Step: author.Step.ID, Name: author.Package.Name, Visit: 1, Try: 1}, {Step: critic.Step.ID, Name: critic.Package.Name, Visit: 1, Try: 1}}
 		author.Peers = peers
 		critic.Peers = peers

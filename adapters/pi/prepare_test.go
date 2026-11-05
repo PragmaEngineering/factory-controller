@@ -24,7 +24,7 @@ func TestPrivateProfilePreservesNativeDefaultsAndSource(t *testing.T) {
 	var profiles []string
 	for range 2 {
 		invocation := t.TempDir()
-		prepared, err := (Adapter{}).Prepare(context.Background(), adapters.Request{Package: execution.PackageSnapshot{Source: source, Settings: json.RawMessage(`{"with":{}}`), Runtime: &execution.NativeRuntime{Name: "pi", Version: "=1.0.3", Executable: binary}}, Command: []string{"entrypoint", "--workspace", "selected"}, InvocationDir: invocation})
+		prepared, err := (Adapter{}).Prepare(context.Background(), adapters.Request{Package: execution.PackageSnapshot{Source: source, Settings: json.RawMessage(`{"overrides":{}}`), Runtime: &execution.NativeRuntime{Name: "pi", Version: "=1.0.3", Executable: binary}}, Command: []string{"entrypoint", "--workspace", "selected"}, InvocationDir: invocation})
 		require.NoError(t, err)
 		require.Equal(t, []string{"entrypoint", "--workspace", "selected"}, prepared.Command)
 		profile := prepared.Environment["PI_CODING_AGENT_DIR"]
@@ -44,11 +44,9 @@ func TestPrivateProfilePreservesNativeDefaultsAndSource(t *testing.T) {
 	require.Equal(t, defaults, original)
 }
 func TestPiRejectsUnsupportedOverridesBeforeLaunch(t *testing.T) {
-	root := t.TempDir()
-	binary := filepath.Join(root, "pi")
-	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\necho 1.0.3\n"), 0700))
-	_, err := (Adapter{}).Prepare(context.Background(), adapters.Request{Package: execution.PackageSnapshot{Runtime: &execution.NativeRuntime{Name: "pi", Executable: binary}, Settings: json.RawMessage(`{"with":{"model":"ignored-no-longer"}}`)}, InvocationDir: root})
-	require.ErrorContains(t, err, "does not yet support with overrides")
+	err := (Adapter{}).Validate(execution.PackageSnapshot{Settings: json.RawMessage(`{"overrides":{"api_key":"fake-secret-value"}}`)})
+	require.ErrorContains(t, err, "unsupported field")
+	require.NotContains(t, err.Error(), "fake-secret-value")
 }
 
 func TestMalformedNativeProfileIsRejectedWithoutPrintingItsContents(t *testing.T) {

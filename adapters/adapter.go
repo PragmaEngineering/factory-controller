@@ -83,3 +83,24 @@ func (Command) Prepare(_ context.Context, request Request) (Prepared, error) {
 	}
 	return Prepared{Command: append([]string(nil), request.Command...), InputMode: "pty", Runtime: execution.RuntimeIdentity{Name: "command", AdapterVersion: "1", Capabilities: Command{}.Capabilities()}}, nil
 }
+
+// Validator rejects adapter-owned settings before the controller persists them.
+// It must not start processes, contact providers, or resolve credential values.
+type Validator interface {
+	Validate(execution.PackageSnapshot) error
+}
+
+func (r Registry) Validate(packages []execution.PackageSnapshot) error {
+	for _, pkg := range packages {
+		adapter, err := r.Select(pkg.Runtime, false)
+		if err != nil {
+			return err
+		}
+		if validator, ok := adapter.(Validator); ok {
+			if err := validator.Validate(pkg); err != nil {
+				return fmt.Errorf("package %q: %w", pkg.Name, err)
+			}
+		}
+	}
+	return nil
+}

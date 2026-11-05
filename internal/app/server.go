@@ -70,8 +70,9 @@ func Serve(ctx context.Context, root string) error {
 			return nil, err
 		}
 		go func() { <-serviceContext.Done(); stopComms() }()
-		controller := &control.Controller{Store: store, Sessions: manager, Root: root, Comms: communication}
-		runner := commandrunner.Runner{Adapters: adapters.Registry{"command": adapters.Command{}, "pi": pi.Adapter{}}, Hooks: hooks.Runner{Recorder: store, Sessions: manager}, Sessions: manager, Recorder: store, Root: root, Comms: communication}
+		registry := adapters.Registry{"command": adapters.Command{}, "pi": pi.Adapter{}}
+		controller := &control.Controller{Adapters: registry, Store: store, Sessions: manager, Root: root, Comms: communication}
+		runner := commandrunner.Runner{Adapters: registry, Hooks: hooks.Runner{Recorder: store, Sessions: manager}, Sessions: manager, Recorder: store, Root: root, Comms: communication}
 		engine, err := hatchetengine.New(client, runner, control.ProgressObserver{Store: store, Sessions: manager, Comms: communication})
 		if err != nil {
 			return nil, err

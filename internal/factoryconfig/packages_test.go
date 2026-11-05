@@ -13,7 +13,7 @@ import (
 func TestPackagesPinOverridesAndResolveBindings(t *testing.T) {
 	project := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
-	config := `{"name":"readiness","packages":[{"name":"classifier","path":".","entrypoint":"start.sh","with":{"model":"version-1","api_key_env":"MY_PROVIDER_KEY"}},{"name":"architect","path":".","entrypoint":"start.sh"}],"workflow":{"start":"evaluate","steps":[{"name":"evaluate","type":"run","package":"classifier","input_bindings":{"task":{"execution":"input"}},"on":{"completed":"plan"}},{"name":"plan","type":"run","package":"architect","input_bindings":{"response":{"step":"evaluate","output":"response"}},"on":{"completed":"$done"}}]}}`
+	config := `{"name":"readiness","packages":[{"name":"classifier","path":".","entrypoint":"start.sh","overrides":{"model":"version-1","api_key_env":"MY_PROVIDER_KEY"}},{"name":"architect","path":".","entrypoint":"start.sh"}],"workflow":{"start":"evaluate","steps":[{"name":"evaluate","type":"run","package":"classifier","input_bindings":{"task":{"execution":"input"}},"on":{"completed":"plan"}},{"name":"plan","type":"run","package":"architect","input_bindings":{"response":{"step":"evaluate","output":"response"}},"on":{"completed":"$done"}}]}}`
 	path := filepath.Join(project, "factory.json")
 	require.NoError(t, os.WriteFile(path, []byte(config), 0600))
 	resolved, err := Load(path)
@@ -23,11 +23,14 @@ func TestPackagesPinOverridesAndResolveBindings(t *testing.T) {
 	require.Equal(t, "response", resolved.Configuration.Workflow.Steps[1].InputBindings["response"].Output)
 	var settings map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(resolved.Configuration.Packages[0].Settings, &settings))
-	require.JSONEq(t, `{"model":"version-1","api_key_env":"MY_PROVIDER_KEY"}`, string(settings["with"]))
+	require.JSONEq(t, `{"model":"version-1","api_key_env":"MY_PROVIDER_KEY"}`, string(settings["overrides"]))
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(config, "\"overrides\"", "\"with\"", 1)), 0600))
+	_, err = Load(path)
+	require.ErrorContains(t, err, "unknown field \"with\"")
 	// Settings, as well as package bytes, participate in the pinned configuration digest.
 	var definition map[string]any
 	require.NoError(t, json.Unmarshal([]byte(config), &definition))
-	definition["packages"].([]any)[0].(map[string]any)["with"].(map[string]any)["model"] = "version-2"
+	definition["packages"].([]any)[0].(map[string]any)["overrides"].(map[string]any)["model"] = "version-2"
 	raw, err := json.Marshal(definition)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, raw, 0600))
