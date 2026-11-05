@@ -4,7 +4,7 @@ Run from the intended project directory. Uppercase IDs and paths below stand for
 
 ## Service lifecycle
 
-`factory start` explicitly starts the shared local service and waits for readiness. Operational commands never start it. When authorized to run a workflow, start the service if needed before submission. For an inspection-only request, report that the service is unavailable rather than starting it without authorization. `factory stop` affects all projects and agents using the shared service; only run it when the user requests service shutdown. Use execution cancellation for one workflow.
+`factory start` explicitly starts the shared local service and waits for readiness. Both `start` and `stop` work from any directory without reading `factory.json`; they manage the per-user daemon, not a project or execution. Operational commands never start it. When authorized to run a workflow, start the service if needed before submission. For an inspection-only request, report that the service is unavailable rather than starting it without authorization. `factory stop` affects all projects and agents using the shared service; only run it when the user requests service shutdown. Use execution cancellation for one workflow.
 
 ## Start or locate an execution
 

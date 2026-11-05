@@ -105,3 +105,36 @@ func TestLifecycleCommandsRejectArguments(t *testing.T) {
 		require.ErrorContains(t, err, "usage: factory "+name)
 	}
 }
+
+func TestDaemonLifecycleIgnoresProjectConfiguration(t *testing.T) {
+	requests := make(chan string, 12)
+	root := fakeService(t, func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.URL.Path
+		switch r.URL.Path {
+		case "/health":
+			io.WriteString(w, `{"ready":true}`)
+		case "/version":
+			io.WriteString(w, `{"api":"factory-control-v3"}`)
+		case "/shutdown":
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	for _, withInvalidConfig := range []bool{false, true} {
+		directory := t.TempDir()
+		if withInvalidConfig {
+			require.NoError(t, os.WriteFile(filepath.Join(directory, "factory.json"), []byte("invalid project configuration"), 0600))
+		}
+		t.Chdir(directory)
+		for _, command := range []string{"start", "stop"} {
+			var output bytes.Buffer
+			require.NoError(t, runCommand(context.Background(), []string{command}, root, strings.NewReader(""), &output, &output))
+		}
+		require.NoDirExists(t, filepath.Join(directory, ".factory"))
+		for _, route := range []string{"/health", "/version", "/shutdown"} {
+			require.Equal(t, route, <-requests)
+		}
+	}
+	require.Empty(t, requests)
+}
