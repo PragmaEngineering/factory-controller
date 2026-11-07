@@ -48,35 +48,19 @@ Lifecycle reports describe runtime observations for completion recovery. They ar
 
 Source changes will not update already-running adapter processes. Assess affected execution traces for extra turns and token usage; disclose any intervention or contamination when reporting an eval. Do not cancel, restart or resubmit an execution automatically as part of this fix.
 
-## CTRL-002 — Log viewer scrolling, rendering and inspection are unreliable
+## CTRL-002 — Persist inspectable tool-failure evidence with per-factory retention
 
 **Priority:** High
+**Status:** Open — expanded 2026-11-07
+**Ownership:** Controls evidence ingestion, persistence, API, CLI, and retention; native adapters supply observations; Monitor provides inspection.
 
-**Status:** Open
+### Problem
 
-The affected terminal UI is archived in [Monitor’s `.tui_deprecated`](../monitor/.tui_deprecated/README.md). The replacement web monitor intentionally omits logs; CLI logs and event streams remain supported. Retain these findings as evidence for any future web log viewer.
+The cumulative tool-failure counter is useful and must remain. It does not explain which calls failed, what arguments were supplied, what the tool returned, or whether an explicit later action resolved the failure. An operator must currently reconstruct that evidence from raw session output.
 
-### Reported problems
+The control plane must persist the evidence behind each counted failure and make it directly inspectable in Monitor. This is not a request for another counter, browser-only storage, or a general-purpose web log viewer. Evidence must survive process exit, browser closure, and daemon restart for its configured retention period.
 
-- Scrolling loses the log line being read as new output arrives.
-- Log lines render inconsistently; navigation does not behave like a conventional terminal log viewer.
-- Terminal text cannot be highlighted reliably for copying.
-- Raw-message inspection uses a small dialog, leaving too little space for the full message.
-- JSON is not pretty-printed, making structured records difficult to read.
-- The build tool-failure count has no direct drill-down showing the failed calls, their arguments and diagnostic output.
-
-### Investigation notes
-
-Potential contributors identified in the current code:
-
-- Raw scrolling uses an offset measured backward from the live tail rather than a stable content anchor.
-- Partial records can acquire different timestamps when later transport chunks arrive; selection matching depends on those timestamps.
-- Selected-agent output is refreshed from a bounded tail, which can replace previously visible content.
-- Raw activity rendering operates on transport chunks rather than consistently reconstructed records.
-- Inspection dialogs cap their width at 88 columns.
-- Application mouse capture can prevent native terminal selection.
-
-Relevant code: [log rendering](../monitor/.tui_deprecated/dashboard/logs.go), [refresh and navigation](../monitor/.tui_deprecated/dashboard/dashboard.go), [inspection dialogs](../monitor/.tui_deprecated/dashboard/actions.go), and [content formatting](../monitor/.tui_deprecated/dashboard/markdown.go).
+Full tool arguments and results can be large and sensitive. Their retention must be an explicit, validated setting in the root `factory.json`, pinned with the execution rather than an undocumented UI limit or a daemon-global assumption.
 
 ### Tool-failure evidence
 
@@ -88,28 +72,104 @@ During inspection of execution `fc25ef9d-711e-4147-b58b-e1bf28f9d6ff` (GO-001 ru
 
 The monitor counter is cumulative: each `tool_execution_end` with `isError: true` contributes one failure. A call containing several failing shell commands still counts once. A later successful call does not erase an earlier failure. These are tool-call failures, not necessarily failed workflow attempts or unresolved defects. Inspection must make that distinction clear without inferring recovery from an unrelated later success.
 
-### Proposed scope for review
+### Current implementation boundary
 
-- Preserve the selected record/line while paused, including across new output and chunk completion; distinguish following from paused state.
-- Provide consistent line/page/start/end navigation and intentional wrapping.
-- Reconstruct records before presentation while preserving original output for inspection and copying.
-- Use available terminal space for full-message inspection, with access to all content.
-- Pretty-print JSON/JSONL without changing numbers or underlying evidence.
-- Define how mouse-wheel navigation and native terminal text selection coexist; support complete-message copying.
-- Make monitor retention limits explicit and distinguish them from persisted logs.
-- Let users inspect/filter failed calls from the failure count, correlating call ID, timestamp, tool name, arguments and complete result. Preserve access to the original record and distinguish cumulative failures from workflow status.
+- [Telemetry events and summaries](internal/telemetry/telemetry.go) maintain cumulative failures and active tools; they are not a complete persisted failure-evidence model.
+- [Pi telemetry extraction](adapters/pi/telemetry.mjs) emits `tool_finished` with call ID and failed status; the normalized event does not carry the complete tool result. Start-event command summaries are bounded and are not a substitute for exact stored arguments.
+- [Session output capture](internal/sessions/manager.go) retains raw output separately. Preserving that output is valuable, but requiring operators or Monitor to reparse an entire native session is not an inspection API.
+- [Factory configuration](internal/factoryconfig/load.go) currently has no tool-failure retention field. The configuration example below is proposed, not supported syntax.
+- Native adapters own runner-specific extraction. Controls and Monitor must consume a runner-neutral evidence contract; do not teach the generic controller to parse Pi records.
+
+### Evidence record and storage requirements
+
+Persist an execution-owned failure record with enough information to identify and inspect the actual failed invocation:
+
+| Field group | Required information |
+| --- | --- |
+| Identity | Stable failure ID; execution; stage/step when applicable; visit; attempt; session; native tool-call ID scoped to that invocation |
+| Tool | Tool name, structured arguments or an exact retained representation, command when applicable, observed working directory if supplied by the runtime |
+| Timing | Start/end timestamps when known, observation/ingestion time, and duration when derivable; distinguish observation time from native event time |
+| Result | Failure signal, error classification/message, exit status or terminating signal when available, structured result, and stdout/stderr or combined output as actually reported |
+| Supporting evidence | Stored attachments or bounded result blobs explicitly supplied by the runtime, plus references to surrounding persisted activity where available |
+| Integrity and completeness | Digests/byte counts of stored representations, extraction/schema version, redaction indicator, truncation/omission state and reason, original size when known |
+| Lifecycle | Retention policy snapshot, expiry eligibility, evidence availability state, deletion timestamp/reason, and explicit recovery links or assessments when supported |
+
+Requirements:
+
+- Write evidence durably in Controls-owned storage with a database index. Decide inline versus blob/file storage based on size; keep large results out of the frequently rewritten execution JSON projection.
+- Preserve structured result data and native provenance alongside readable normalized fields. Never invent an exit code, separate stderr stream, working directory, or recovery status that the runner did not report.
+- Handle concurrent calls, late/out-of-order completion, split transport records, duplicate native records, delivery replay, abrupt process exit, and missing start events. Correlation must survive restart without attributing evidence to a different attempt.
+- Make evidence indexing and the cumulative counter consistent. Prefer one idempotent persistence boundary or an explicitly recoverable linkage so a counted failure cannot silently lose its evidence reference.
+- If a runtime reports a failure count without detailed evidence, preserve the count and expose `unavailable` or equivalent with its reason. Do not fabricate inspectable records or imply full coverage.
+- Store associated files only when explicitly supplied/authorized by the runtime contract. Do not open arbitrary host paths discovered in error text. A path printed by a tool is not proof that an attachment was captured.
+- Sanitize secrets before durable evidence storage and apply equivalent controls to downloads, exports, and raw representations. Preserve the redacted stored representation faithfully; do not promise unredacted originals as a fallback.
+- Define capture-size limits, storage-full behavior, and overflow/truncation indicators. Retention bounds time, not burst size; avoid unlimited argument/result ingestion. Do not silently convert storage failure into complete evidence.
+
+### Proposed factory.json retention configuration
+
+Design proposal only; review final naming and defaults before implementation:
+
+```json
+{
+  "name": "golang",
+  "retention": {
+    "tool_failure_evidence": {
+      "days": 30
+    }
+  }
+}
+```
+
+This is a fragment of a complete factory configuration. The proposed `days` value is a positive integer representing consecutive 24-hour periods. The suggested default is **30 days**, not a claim about current behavior. Reject zero, negative, fractional, malformed, or out-of-range values; do not overload zero to mean both disabled and forever. Choose and document a finite supported maximum. An unlimited-retention option is not required for the first implementation.
+
+Retention semantics to implement and document:
+
+1. **Per execution, frozen at submission.** Resolve defaults and pin the policy in the execution configuration. Changing a project's `factory.json` affects future executions; it must not silently shorten an existing execution's evidence retention.
+2. **Protect active work.** Start the proposed retention clock when the execution reaches a terminal state, not when one tool call fails. Running, blocked, waiting-for-human, and otherwise resumable executions retain their evidence. Define how explicit future continuation/reopening affects eligibility before enabling it.
+3. **Preserve measurements.** Expiring large argument/result/attachment payloads does not decrement historical failure counts or erase failure identity and timing from retained execution history. Keep a lightweight tombstone with availability and expiry information until the parent history itself is removed. The UI may show, for example, nine historical failures with three payloads expired.
+4. **Use authoritative timestamps.** Compute eligibility from persisted terminal/retention timestamps, with documented UTC calculations. A pending review or supported explicit reference that requires evidence must not be broken without a defined retention rule.
+5. **Control-plane cleanup.** Run bounded, resumable cleanup independently of an open browser. Catch up after daemon downtime; coordinate concurrent cleanup workers safely and delete only owned evidence. Expired payloads must not reappear through replay/backfill. Expose cleanup backlog/errors rather than claiming deletion at the eligibility instant.
+6. **Account for duplicate storage.** If the same content remains in raw native logs, activity rows, report snapshots, caches, exports, or copied attachments, expiring one evidence blob does not delete those copies. Inventory those paths and decide whether this policy governs each owned copy, requires compatible retention, or explicitly excludes it. Do not market an evidence TTL as a complete erasure guarantee while identical payloads remain indefinitely in owned raw logs. User-downloaded exports are outside automatic control-plane cleanup and must be identified as such.
+7. **Separate automatic expiry from explicit deletion.** Define interactions with execution deletion and `factory prune --all`. An explicitly authorized parent-data deletion can remove evidence sooner; ordinary `factory prune` must not expire retained failure payloads merely because they are files. Foreign source files, worktrees, agent bundles, and external services are never evidence-retention cleanup targets.
+8. **Apply availability consistently.** An expired/purged record remains distinguishable from evidence that was never captured, is partially captured, or is temporarily unreadable. API, Monitor, CLI, and reports must use the same availability states.
+
+### Monitor and CLI inspection
+
+- Make the cumulative failure count on execution and step details an actionable link/button to the corresponding failure list. Keep the existing count and its cumulative meaning.
+- Provide filtering by stage/step, visit, attempt, session/agent, tool, and time, with stable ordering and pagination. Keep concurrent calls distinct.
+- Selecting a failure opens a large, scrollable details view with identity/timestamps, arguments, structured results, error/exit information, and retained attachments. Long content must not be confined to a tiny dialog.
+- Support readable JSON with preserved numeric precision, selectable/copyable text, and safe downloads of retained evidence. Show full retained content or explicitly indicate truncation; do not silently hide the tail.
+- Link to surrounding CLI activity/logs using stable IDs/cursors when available. Do not require building a general web logs page or loading the entire native transcript into the browser.
+- Display expiry policy/deadline, availability/completeness, redaction, truncation, and capture gaps. For expired evidence, retain the metadata row and explain why the payload cannot be opened.
+- Expose the same evidence through an inspection API and CLI path so external agents and reports do not need a browser or their own Pi log parser. Propose minimal CLI/API additions for review rather than proliferating commands.
+- Never equate a historical tool failure with a failed workflow. Recovery/resolution is separate attributed information, and an unrelated later successful call is insufficient proof.
 
 ### Acceptance criteria
 
-- New output and split-record completion do not move a paused reader to another record.
-- Long, multiline and Unicode records fit terminal bounds without hiding their final lines.
-- Complete messages can be inspected and copied, including content outside the visible viewport.
-- JSON is readable and preserves large integers; original content remains available.
-- Mouse, keyboard and follow controls are documented and verified at representative terminal sizes.
-- Regression tests cover live appends, partial records, retention boundaries, resizing, navigation and inspection.
-- Failure inspection includes every counted failed call exactly once, without duplicating equivalent native message records. Multiple shell failures within one tool call count once; subsequent success does not remove the historical failure.
+- Every detailed counted failure has a stable inspectable record exactly once, including concurrent calls and repeated native deliveries. Equivalent records are deduplicated within the correct invocation, not globally by a reusable native call ID.
+- A tool call containing several failing shell commands counts once. A later success does not erase the historical failure or its evidence.
+- Persisted evidence survives agent/process exit, daemon restart, and browser closure. Monitor and CLI agree on counts, identities, contents, and availability.
+- Operators can drill down from execution/step counts to the exact failed call and read/copy the complete retained arguments/result. Missing streams, exit codes, or attachments are explicitly marked unknown/unavailable.
+- Automated fixtures cover long/multiline/Unicode content, large JSON integers, concurrent and out-of-order calls, missing start records, split records, duplicate delivery, abrupt exit, and a failure followed by correlated recovery.
+- Redaction tests cover credentials in arguments, URLs, headers, stdout/stderr, nested structured data, and attachments. Original secret values must not leak through alternate evidence endpoints or exports covered by the policy.
+- Retention configuration is validated and pinned. Tests use a controlled clock for expiry boundaries, policy defaults, configuration changes between executions, blocked/human-wait protection, and service downtime.
+- Expiry removes eligible owned payloads/attachments without lowering historical counts; a tombstone remains while parent history remains. Repeated/concurrent cleanup is idempotent and does not resurrect expired data.
+- Duplicate owned storage has documented retention semantics, tested for the selected scope. Reports distinguish historical counts from currently available detailed evidence.
+- Cleanup failures, partial capture, quota/size limits, and expired versus never-captured evidence are observable. Tests prove no source workspace or unrelated files are removed.
+- No paid model calls are needed for the ingestion, inspection, and retention regression tests. A separate authorized eval validates the operator experience.
 
-Review the interaction design before implementation. No fix is authorized by this issue.
+### Historical TUI findings
+
+The original report concerned scrolling losing the selected line, chunk-based rendering, small inspection dialogs, unreadable JSON, and mouse capture interfering with selection. The affected implementation is archived in [Monitor’s `.tui_deprecated`](../monitor/.tui_deprecated/README.md). Retain these as design evidence; repairing that UI is not the current scope. New viewers should preserve paused selection and distinguish stored evidence from the visible tail.
+
+### Related work and non-goals
+
+- CTRL-009: database outages and bounded persistence behavior also apply to evidence ingestion.
+- CTRL-010: paginated summaries and incremental activity should be reused rather than adding large failure payloads to every execution-list response.
+- CTRL-013: behavioral reports must preserve measurement provenance and distinguish missing from expired evidence.
+- CTRL-014: artifact-path failures provide a concrete inspection example; evidence retention must not automatically move or repair misplaced product artifacts.
+- Do not add a new agent, model-based failure classifier, general artifact-lifecycle framework, or general-purpose web log viewer to deliver the first useful version.
+- This issue defines required persistence and UX outcomes plus a proposed retention shape. It does not authorize code changes, data deletion, live workflow intervention, or repair/regrading of prior evals.
 
 ## CTRL-003 — Repeated invalid documentation queries waste build-agent work
 
@@ -455,3 +515,325 @@ No Pi provider/model override implementation (CTRL-005), workflow redesign, sche
 - Added a [non-Pi MCP reference worker](adapters/conformance/worker/main.go) and [managed conformance tests](internal/commandrunner/conformance_test.go).
 - Added [Adding an agent runtime](docs/runtime-adapters.md), capability/ownership matrices, contributor checklist and updated factory/Registry examples.
 - Verification: full Go suite, `go vet ./...`, targeted race tests, Controls npm adapter tests and Registry tests. Registry's optional installed-Pi skill-discovery test remains skipped by default. No paid model calls, production service restart, eval intervention or commits.
+
+## CTRL-007 — Make control commands recoverable across dispatch and persistence failures
+
+**Priority:** High — first reliability workstream
+**Status:** Open
+
+### Problem and evidence
+
+The workflow engine and Controls projection are separate durability boundaries. [Execution submission](internal/control/controller.go) creates a local execution, dispatches it, then records the engine run ID. Decision handling sends the decision before persisting the answered request. A crash, timeout, or failed write between these operations can leave an accepted command looking unaccepted, or local and engine state inconsistent. An uncertain dispatch response does not establish that the engine rejected the operation.
+
+The CLI checks a returned failed execution, but the HTTP submission path can return a created response containing that failed record. Define consistent command semantics across CLI, MCP, and Monitor rather than relying on each caller to infer success differently.
+
+### Required change
+
+- Define durable command identities, status, and request fingerprints for submission, decisions, retry, and cancellation. Reject conflicting reuse of an identity.
+- Persist command intent before dispatch; use an outbox or equivalent recoverable dispatch mechanism. Reuse the same identity for reconciliation and transport retries.
+- Keep engine-specific deduplication and lookup behind the engine interface. Where deduplication cannot be guaranteed, expose an unresolved state rather than redispatching blindly.
+- Define accepted, dispatched, confirmed, rejected, and unresolved behavior and public error semantics. A caller must be able to inspect the original command after losing its response.
+- Avoid claims of atomicity or exactly-once side effects across independent systems.
+
+### Acceptance criteria
+
+- Failure injection covers crashes before/after dispatch, lost responses, and failed projection updates for each command type.
+- Repeating one command cannot create duplicate executions or contradictory decisions; concurrent conflicting decisions have a deterministic result.
+- Restart reconciliation resolves confirmed outcomes or explicitly retains uncertainty with actionable evidence.
+- CLI, MCP, and Monitor expose the same command identity and outcome semantics.
+
+### Scope
+
+Prioritize this with CTRL-008 and CTRL-009. Do not redesign workflow syntax or move orchestration policy into agents.
+
+## CTRL-008 — Reconcile executions and owned processes after service interruption
+
+**Priority:** High — first reliability workstream
+**Status:** Open
+
+### Problem and evidence
+
+[Supervisor startup](internal/sessions/manager.go) marks previously running sessions interrupted; that alone does not reconcile live host processes, engine position, accepted MCP results, pending messages, or hook effects. The local resource journal enables verified recovery shutdown but is not a complete execution recovery protocol. Agents are started before their ownership record is written, leaving a crash window between spawn and registration.
+
+### Required change
+
+- Specify recovery invariants for each execution, step visit, attempt, session, communication participant, hook invocation, and managed dependency.
+- Close or explicitly account for the spawn/registration window, for example with a launcher registration handshake that prevents agent work until ownership is durable.
+- Reconcile persisted state against verified process ownership, accepted results, and engine state before permitting replacement work. Never adopt a process from a PID alone.
+- Define whether interrupted work is blocked, retried, or already completed. Preserve accepted results, evidence, and stable invocation identities.
+- Handle hook side effects through their existing idempotency contract; reconciliation must not repeat an unverified external effect.
+
+### Acceptance criteria
+
+- Deterministic tests interrupt launch, result acceptance, decision delivery, hook execution, and shutdown at defined boundaries.
+- Restart cannot silently dispatch duplicate work or accept stale results from superseded attempts.
+- Surviving processes are reconciled or explicitly reported as unresolved; unrecoverable PTYs are not presented as reattached sessions.
+- Repeated reconciliation converges without changing previously accepted outcomes or deleting source workspaces.
+- Keep separate ownership for engine durability and host-process recovery; this is not a scheduler replacement.
+
+## CTRL-009 — Bound output persistence and session finalization during database outages
+
+**Priority:** High — first reliability workstream
+**Status:** Open
+
+### Problem and evidence
+
+[Session output capture](internal/sessions/manager.go) retries failed database writes indefinitely using a background context. Process-exit handling waits for the capture goroutine even after closing the PTY. A persistent outage can therefore prevent finalization. Temporary backpressure is useful, but indefinite waiting is not a recovery policy.
+
+### Required change
+
+- Define bounded outage behavior, cancellation, and an observable degraded state for output persistence and session finalization.
+- Evaluate a bounded local spool versus explicit termination after a configured outage limit. Document capacity, retention, replay ordering, deduplication, and disk-full behavior if spooling is selected.
+- Preserve evidence when possible; explicitly report gaps rather than silently dropping output or claiming complete capture.
+- Keep shutdown bounded even when the database remains unavailable. Reconcile pending final state when persistence returns.
+
+### Acceptance criteria
+
+- Tests cover temporary outages, sustained outages, cancellation, process exit during an outage, database recovery, and exhausted spool capacity if applicable.
+- Shutdown/finalization cannot wait indefinitely for output persistence.
+- Replayed output retains order without duplication, and incomplete evidence is visible in inspection/reporting.
+- Resource use stays bounded; backpressure and termination behavior are documented.
+
+## CTRL-010 — Make execution inspection lightweight, paginated, and incremental
+
+**Priority:** Medium
+**Status:** Open
+**Ownership:** Controls read API/storage; Monitor consumption.
+
+### Problem and evidence
+
+Execution JSON records include pinned configuration, step history, requests, and a growing events array. [Projection updates](internal/control/store.go) serialize the complete record, and listing returns full execution records. Monitor polls execution data repeatedly. This creates increasing read, serialization, transfer, and write costs as history grows; large-scale performance has not yet been benchmarked.
+
+### Required change
+
+- Add a lightweight execution-summary query and stable cursor pagination for execution lists.
+- Expose incremental activity/events using durable cursors; let Monitor request changes rather than repeatedly transfer complete histories.
+- Separate large append-only histories from frequently updated projection state where measurement justifies it. Reuse existing durable activity storage where appropriate; avoid a wholesale database rewrite.
+- Keep ordering, snapshot consistency, missing/expired cursor behavior, and reconnect semantics explicit.
+
+### Acceptance criteria
+
+- Benchmarks cover increasing execution counts and long execution histories, recording payload sizes and query/update latency.
+- List responses exclude pinned packages and full event histories unless explicitly requested.
+- Pagination and incremental refresh do not omit or duplicate records under concurrent updates.
+- CLI, Monitor, reports, and existing full inspection retain access to complete evidence.
+
+## CTRL-011 — Provide one pre-execution configuration and setup check
+
+**Priority:** High — after the first reliability workstream
+**Status:** Open
+
+### Problem
+
+Users currently encounter setup problems across configuration loading, package validation, native preflight, and actual execution. Much of the validation machinery exists, but there is no single clear inspection operation that explains whether a configured factory is ready and what is missing before creating execution state.
+
+### Required change
+
+- Propose one CLI check operation and a reusable application/API boundary for agent-driven use; avoid parallel validation implementations.
+- Report configuration errors, unresolved paths/variables, unsupported adapters/versions/capabilities, invalid overrides, missing entrypoints/hooks/executables, and absent credential environment names.
+- Separate static/offline validation from native probes and explicitly requested connectivity checks. Label checks not performed and limits of readiness claims.
+- Reuse existing loader, adapter Validator, and preflight contracts. Keep runner-specific checks in adapters.
+- Redact secrets. Do not implicitly call paid models, create an execution/worktree, run lifecycle hooks, install tools, or start the daemon.
+
+### Acceptance criteria
+
+- One invocation produces actionable per-check results and a reliable exit status, with structured output for external agents.
+- Tests prove no workflow or model request is started by the default check.
+- Unsupported configuration and missing prerequisites are distinguishable from transient connection failures.
+- Passing static validation is not described as proof of provider availability or successful agent execution.
+
+## CTRL-012 — Package installation independently of adjacent source checkouts
+
+**Priority:** High — after the first reliability workstream
+**Status:** Open
+**Ownership:** Controls distribution and Registry integration.
+
+### Problem and evidence
+
+The Controls installer installs the Go binary but not adapter/SDK npm dependencies. [Registry dependencies](../registry/package.json) point to sibling Controls source directories through local file references. Setup therefore depends on checkout layout and additional manual installation, which is fragile on a new or corporate machine.
+
+### Required change
+
+- Define a versioned installation bundle containing the binary and compatible Controls-owned adapter/SDK assets, with explicit locations and compatibility metadata.
+- Keep user agent bundles and external tools separate; expose their prerequisites through the setup check in CTRL-011.
+- Remove the requirement for adjacent source repositories at runtime. Preserve source-based contributor development as a separate documented path.
+- Support reproducible dependency locks and a documented offline/corporate installation path, including CA/proxy requirements where network access remains necessary.
+- Define upgrade and rollback behavior without silently restarting services or modifying active execution configuration.
+
+### Acceptance criteria
+
+- A clean-machine test installs and runs a fixture workflow without a Controls source checkout or sibling-repository layout.
+- Missing/incompatible runtime assets produce an actionable setup failure before execution.
+- Packaged asset versions/digests are inspectable and credentials are never bundled.
+- Installation is repeatable, paths with spaces are covered, and upgrade/rollback behavior is tested.
+- Do not introduce a remote package registry, plugin ecosystem, or agent-tool installer merely to solve asset distribution.
+
+## CTRL-013 — Establish repeatable behavioral and recovery release gates
+
+**Priority:** High
+**Status:** Open
+**Ownership:** Controls verification and the separate eval repository.
+
+### Problem
+
+Unit and fixture integration tests establish important contracts, but they do not demonstrate reliable provider-backed workflow behavior. A successful operator-assisted eval is also not evidence of unattended recovery. Recent adapter, workspace, messaging, and lifecycle changes need repeatable evaluation with comparable evidence.
+
+### Required change
+
+- Use the existing unchanged Go scenario as the behavioral benchmark, with pinned factory configuration, package digests, runtime versions, and an identified baseline.
+- Record completion, acceptance/quality evidence, interventions, elapsed time, tokens/usage coverage, tool failures, retries, and recovery behavior. Keep missing measurements explicit.
+- Separate unattended runs from operator-assisted runs and intended human approvals from recovery interventions. Preserve contaminated/failed runs with their provenance.
+- Treat scenario changes as a new scenario revision/cohort; distinguish comparable scenario results from broader factory-level aggregates.
+- Add deterministic crash/failure tests from CTRL-007–CTRL-009 alongside the behavioral eval. They cover different claims and must not substitute for one another.
+- Define release criteria, tolerances, repetition policy, and authorized provider spend. Model-backed gates must be explicitly triggered rather than silently adding paid calls to ordinary unit tests.
+
+### Acceptance criteria
+
+- A documented command/script runs the existing benchmark and produces immutable evidence plus a comparable report.
+- Reports distinguish configuration changes, scenario changes, normal human decisions, recovery interventions, and incomplete usage.
+- A candidate release cannot be labelled verified solely because one assisted run completed.
+- Recovery gate failures identify the violated invariant and reproducible interruption boundary.
+- Follow the eval repository's black-box execution rules: no agent/operator implementation work or unrecorded repairs to improve a result.
+
+## CTRL-014 — Bind artifact writes to execution storage instead of model-generated absolute paths
+
+**Priority:** High
+**Status:** Open — recorded 2026-11-07
+**Ownership:** Controls artifact/storage boundary and agent-facing contract; Registry rendering scripts and skills integrate with that contract.
+
+### Problem
+
+An agent can receive the correct execution-files directory yet write its required outputs elsewhere by reproducing an absolute path incorrectly in a tool call. Current completion validation catches missing files after the work, but the writing operation does not enforce the assigned destination. Correct path selection is therefore a model instruction rather than a deterministic invariant.
+
+This caused a failed architect attempt in GO-001. The failure was not an unavailable model, a document-content rejection, or a JSON completion-schema error. The documents existed, but at an unintended sibling run path that Controls correctly refused to collect.
+
+### Recorded execution and evidence
+
+- Run: `GO-001-20261107T160953628967Z-8271ed`.
+- Execution: `a3211129-2aaf-4799-bdbb-a0c295f0b47c`.
+- Step: `specification`; stage: `design`; visit: 1; attempt: 1.
+- Session: `b04ef253-38f6-43aa-b697-dc78bb5369cd`.
+- Runtime-reported provider/model: OpenRouter, `deepseek/deepseek-v4-flash`.
+- Assigned invocation prompt: `~/.factory/runtime/executions/a3211129-2aaf-4799-bdbb-a0c295f0b47c/d0416b43-e167-56ad-8128-2e20f270afc7/try-1/prompt.md`.
+- Frozen configuration: [run project configuration](../evals/runs/GO-001-20261107T160953628967Z-8271ed/project/factory.json).
+- Evidence can be inspected with `factory b04ef253-38f6-43aa-b697-dc78bb5369cd logs`. These are read operations, not instructions to retry or repair the run.
+
+The prompt supplied the correct directory and explicit paths for both required outputs. The authoritative run component was:
+
+```text
+GO-001-20261107T160953628967Z-8271ed
+```
+
+The architect generated document-rendering commands using:
+
+```text
+GO-001-20261107T160953628968Z-8271ed
+```
+
+The final timestamp digit changed from **7** to **8**. That one-character substitution identified a different filesystem directory, not another revision of the same execution storage.
+
+The expected execution-files root was:
+
+```text
+/Users/j/pragma/evals/runs/GO-001-20261107T160953628967Z-8271ed/project/.factory/executions/a3211129-2aaf-4799-bdbb-a0c295f0b47c/files
+```
+
+The rendered `spec.html` and `plan.html` were written under the equivalent path containing `...628968Z...`. Filesystem inspection found both documents there. The same incorrect run component also appeared in some agent-generated source-workspace commands; those commands returned missing-directory errors. No finding of filesystem isolation, a sandbox mount discrepancy, or collector path corruption was established.
+
+### Failure sequence
+
+1. Factory supplied the correct execution directory, required filenames, and full output paths in the initial assignment.
+2. The architect produced document bodies and invoked Registry's renderer with model-generated absolute `--output` paths containing the changed digit.
+3. The command sequence wrote both rendered documents outside the assigned execution-files root.
+4. The architect submitted completion. Artifact validation attempted to read the configured root and returned:
+
+   ```text
+   artifact_validation_failed:
+   required output "spec.html": lstat ...628967Z.../files/spec.html:
+   no such file or directory
+   ```
+
+5. Controls sent two bounded corrective reminders. The tool error contained the expected path, but the attempt did not relocate or regenerate the documents at that path.
+6. Completion recovery exhausted its configured reminder limit. Controls interrupted the attempt; session exit code 143 reflects termination after the rejected handoff, not the initiating defect.
+7. A later attempt wrote documents under the correct run directory. That does not retroactively repair the failed attempt's evidence or establish a successful final execution.
+
+First-attempt observations, not a controlled comparison:
+
+| Measurement | Recorded value |
+| --- | --- |
+| Started, America/Chicago | 2026-11-07 10:09:57 |
+| Stopped, America/Chicago | 2026-11-07 10:14:58 |
+| Approximate elapsed time | 5 minutes 1 second |
+| Reported input tokens | 66,985 |
+| Reported output tokens | 32,320 |
+| Reported cache-read tokens | 2,282,240 |
+| Native tool-call failures | 11 |
+
+These totals describe the whole attempt, not solely the path error. Reported zero/unavailable pricing must not be interpreted as zero spend. File sizes and modification times observed during investigation are evidence of writes, not an assessment of document quality.
+
+### Root cause and limits of the finding
+
+**Observed mechanism:** the agent's command arguments changed a digit in a supplied path. The initial assignment and collector used the correct path. There is no established explanation for why the model generated that particular substitution; do not attribute it to sampling settings, context exhaustion, provider faults, or a specific model defect without further evidence.
+
+**Engineering weakness:** a required artifact's destination is selected by unconstrained model-generated text. The host writing path accepts that text instead of resolving a relative artifact name against a trusted, execution-bound storage capability. Detection occurs only when publication or completion tries to collect the configured files.
+
+**Recovery weakness:** reminders ask the same agent to inspect and repair the handoff, but still rely on it to identify and correct the same path-selection mistake. More reminders or a longer timeout would not establish correct destination binding.
+
+The renderer accepts a caller-supplied `--output` path. Its current implementation calls `writeFileSync`; it is not an execution-scoped storage API. Do not describe the renderer as creating parent directories automatically or claim that relative paths alone enforce containment.
+
+### Relevant boundaries
+
+- [Required-output collection](internal/artifacts/host.go): collects against `work.ArtifactDirectory()`.
+- [Artifact collection and validation](internal/artifacts/collect.go): inspect the actual implementation when designing containment changes.
+- [Invocation preparation and assignment prompt](internal/commandrunner/runner.go): currently supplies execution paths to agent tools.
+- [Communication and completion recovery](docs/communications.md): accepted results remain contingent on verified required outputs.
+- [Registry document renderer](../registry/skills/author-spec/scripts/document.mjs): owns spec/plan presentation, not workflow storage authority.
+- [Execution files and variables](docs/execution-files.md): execution evidence is distinct from project source and optional script-selected worktrees.
+
+### Required design outcome
+
+Provide a generic, execution-scoped artifact-writing boundary so an agent identifies **what file to write**, while trusted runtime/storage code determines **where it belongs**.
+
+A conceptual request, for interface discussion rather than an approved new tool/schema, is:
+
+```json
+{
+  "path": "spec.html",
+  "content": "<rendered document bytes>"
+}
+```
+
+The authenticated invocation binds the destination execution. A caller must not supply an arbitrary host root or gain access to another execution by changing an execution ID in the payload. Define a bounded content/transfer representation appropriate for actual artifact sizes; do not require large files to be copied through additional model responses merely to use the boundary.
+
+### Proposed scope for design and implementation
+
+1. **Trusted destination binding.** Resolve relative artifact names under the invocation's assigned files root. Enforce containment in host/storage code. Cover absolute paths, parent traversal, symlink traversal, and cross-execution access; a string-prefix check is insufficient.
+2. **Generic artifact interface.** Support arbitrary declared execution artifacts and safe nested paths. Keep `spec.html` and `plan.html` as workflow/Registry configuration, not special cases in Controls. Do not add separate `write_spec` or `write_plan` operations.
+3. **Transport and ownership.** Decide how the boundary is exposed through the existing MCP/runtime contract or a deterministic helper backed by that authority. Keep agent-to-control-plane communication aligned with MCP and preserve runner independence. Review the protocol before fixing new tool names or message kinds.
+4. **Deterministic renderer integration.** Registry's renderer should use the bound artifact destination through a supported helper/API. Separate rendering from storage, preserve standalone rendering use, and avoid duplicating storage authority inside every skill.
+5. **Artifact receipts and revisions.** Return a verified relative name, byte count, digest, and revision/write identity as appropriate. Define atomic replacement and retry/deduplication semantics. Distinguish a successful write from publication, review approval, and accepted step completion.
+6. **Concurrent access.** Specify ownership or expected-revision checks so one agent cannot silently overwrite a peer's accepted revision. Publication and final collection must refer to consistent bytes, not an unverified path that can change between checks.
+7. **Actionable failure handling.** Distinguish missing output, invalid path, permissions, conflicting revision, and unavailable storage. Corrective feedback should identify the relative artifact and the supported writing operation; it should not require copying the full host path again.
+8. **Keep final validation.** A write receipt alone must not advance a step or prove document quality. Preserve configured-output validation, publication consistency, and explicit MCP result acceptance.
+9. **Document enforcement limits.** The current host runner is not sandboxed. A scoped writer can enforce its own operations, but cannot prevent an agent with unrestricted shell/filesystem tools from writing elsewhere. State that distinction and evaluate narrowly how managed Registry rendering avoids that bypass; do not claim complete filesystem confinement.
+
+### Acceptance criteria
+
+- An agent can produce a required artifact without constructing or reproducing an absolute execution path.
+- Deterministic tests include nearly identical execution IDs and run names differing by one digit. A request cannot redirect a managed write into the other execution or create an unintended sibling run directory.
+- Absolute paths, `..` escapes, symlink escapes, and cross-execution references fail before writing outside the assigned storage root.
+- Valid nested filenames work; legitimate writes cannot corrupt project source, a worktree, or another invocation's artifacts.
+- Failed writes leave no partially accepted artifact. Replayed write requests and concurrent edits have documented, tested behavior.
+- Rendering through the managed path produces the same document presentation and metadata as standalone rendering, without model-generated destination roots.
+- Tests cover missing files, permission errors, interrupted writes, storage errors, stale revisions, and publication/collection consistency.
+- A rejected completion produces a targeted correction using relative artifact identity and the supported repair operation. No unrelated model work or unbounded recovery loop is introduced.
+- A regression fixture reproduces this failure without paid model calls. A subsequent authorized behavioral eval records whether the managed renderer avoids the observed path-selection failure; no historical run is silently repaired or regraded.
+
+### Non-goals and related work
+
+- Do not move source-workspace selection into the controller or add Git-specific control-plane logic. Source selection remains separate from execution evidence storage (CTRL-004).
+- Do not weaken artifact validation, search sibling directories for matching filenames, accept any `spec.html` found on disk, or automatically copy guessed files into an execution. Such behavior could accept stale or another execution's work.
+- Do not fix this solely with more prompt text, longer paths repeated more often, higher retry limits, or a renamed run timestamp.
+- Do not add spec/plan-specific semantics, a new workflow DSL, container runtime, or agent framework as part of this issue. Filesystem isolation remains a separate capability.
+- Coordinate evidence/drill-down with CTRL-002, restart/write recovery with CTRL-008, and regression evaluation with CTRL-013.
+- This issue records a proposal. It authorizes no code changes, live messages, retries, filesystem repair, or changes to recorded eval evidence.
