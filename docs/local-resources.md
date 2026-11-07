@@ -8,7 +8,7 @@ factory stop --all    # also stop recorded agents and managed database leftovers
 ```
 
 `stop --all` first requests normal shutdown, then falls back to verified host
-processes. It stops the service, agent process groups, and the embedded database
+processes. It also stops recorded detached monitors (`factory monitor start -d`). It stops the service, monitor and agent process groups, and the embedded database
 in that order. Database shutdown checkpoints data; it never deletes a database
 lock file. No process is forcibly killed after a timeout: failures are reported.
 
@@ -65,3 +65,5 @@ worktrees, shared download caches, and externally managed dependencies are never
 prune targets. Ownership records and lifecycle lock files remain so concurrent
 clients continue to coordinate safely. A running agent group whose original
 leader is no longer identifiable blocks cleanup; inspect it manually.
+
+`factory monitor stop` stops only Factory-managed detached monitors. It works without a running daemon or an installed Monitor executable, preserves logs, and leaves agent processes and the execution service running. Foreground or independently launched monitors are not ownership-journal targets.

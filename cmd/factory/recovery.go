@@ -54,12 +54,12 @@ func stopAllResources(ctx context.Context, root string, controller *control.Clie
 		}
 	}
 	var failures []error
-	for _, kind := range []string{"service", "agent"} {
+	for _, kind := range []string{"monitor", "service", "agent"} {
 		for _, item := range items {
 			if item.Kind != kind {
 				continue
 			}
-			if err := localresources.StopProcess(stopping, item.Process, kind == "agent"); err != nil {
+			if err := localresources.StopProcess(stopping, item.Process, kind == "agent" || kind == "monitor"); err != nil {
 				failures = append(failures, fmt.Errorf("stop %s: %w", kind, err))
 			}
 		}

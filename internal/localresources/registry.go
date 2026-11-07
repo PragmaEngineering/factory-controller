@@ -27,7 +27,7 @@ type FileIdentity struct {
 }
 
 type Resource struct {
-	Kind    string        `json:"kind"` // service, agent, database, disposable, retained
+	Kind    string        `json:"kind"` // service, monitor, agent, database, disposable, retained
 	Path    string        `json:"path,omitempty"`
 	File    *FileIdentity `json:"file,omitempty"`
 	Process *Process      `json:"process,omitempty"`
@@ -135,7 +135,7 @@ func (r Registry) List() ([]Resource, error) {
 			return nil, fmt.Errorf("read resource %s: %w", entry.Name(), err)
 		}
 		switch item.Kind {
-		case "service", "agent", "database", "disposable", "retained":
+		case "service", "monitor", "agent", "database", "disposable", "retained":
 		default:
 			return nil, fmt.Errorf("unknown resource kind %q", item.Kind)
 		}

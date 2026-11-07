@@ -33,7 +33,8 @@ factory EXECUTION_ID messages -o json        # newest 500 thread messages
 factory SESSION_ID -o json                   # session identity and process state
 factory SESSION_ID logs -f                   # selected agent output
 factory SESSION_ID messages -o json          # operator-to-session delivery records
-pragma-monitor                              # optional separate web monitor (installed independently)
+factory monitor start -d                    # optional separate web monitor (installed independently)
+factory monitor stop                        # stop managed detached monitors only
 ```
 
 The execution stream prints `{source}: {data}` lines; it has no JSON-output option. `-o json` applies to inspection/list/messages commands shown here, not `stream` or `logs`. Stream records include captured agent output, which can itself be JSON; that does not make the entire text stream a JSON document. Omit `-f` for a snapshot. Stop a follower through the host's process/session controls without cancelling the execution. Keep tool output bounded while retaining the underlying capture when needed.

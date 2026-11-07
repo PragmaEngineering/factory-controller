@@ -128,11 +128,15 @@ npm run build
 npm link
 ```
 
-Then, from any directory:
+Then, from any directory (no `factory.json` is needed):
 
 ```sh
-pragma-monitor
+factory monitor start
+# Or return to your shell while Monitor keeps running:
+factory monitor start -d
 ```
+
+Choose foreground or detached mode, not both on the same port. Detached mode prints its PID and log path. Use `factory monitor stop` to stop all managed detached monitors without stopping the execution service. `factory stop --all` also stops them.
 
 Open the printed URL. Select the execution from the searchable dropdown in the top bar. **Home** shows the pinned stages, routes, step status and elapsed time. Select a step for visits, attempts and errors. **Inbox → Messages** lets you inspect conversations and send feedback to a selected running agent session. **Inbox → Requests** presents the configured operator requests and evidence documents; choose an allowed outcome and confirm the response.
 

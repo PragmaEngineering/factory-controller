@@ -55,6 +55,8 @@ func runCommand(ctx context.Context, args []string, root string, input io.Reader
 			return err
 		}
 		return app.Serve(ctx, root)
+	case "monitor":
+		return runMonitor(ctx, args[1:], root, input, output, diagnostics)
 	case "prune":
 		return pruneCommand(ctx, args[1:], root, input, output)
 	case "start":

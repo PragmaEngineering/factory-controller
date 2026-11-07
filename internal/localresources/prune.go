@@ -22,7 +22,7 @@ func (r Registry) PlanPrune(all bool) ([]Action, error) {
 	var plan []Action
 	for _, item := range items {
 		switch item.Kind {
-		case "service", "agent":
+		case "service", "monitor", "agent":
 			live, err := Matches(item.Process)
 			if err != nil {
 				return nil, err
@@ -30,13 +30,13 @@ func (r Registry) PlanPrune(all bool) ([]Action, error) {
 			if live {
 				return nil, fmt.Errorf("managed %s process %d is running; run factory stop --all", item.Kind, item.Process.PID)
 			}
-			if item.Kind == "agent" && item.Process.Group == item.Process.PID {
+			if (item.Kind == "agent" || item.Kind == "monitor") && item.Process.Group == item.Process.PID {
 				running, err := orphanGroupRunning(item.Process)
 				if err != nil {
 					return nil, err
 				}
 				if running {
-					return nil, fmt.Errorf("agent process group %d is still running", item.Process.Group)
+					return nil, fmt.Errorf("%s process group %d is still running", item.Kind, item.Process.Group)
 				}
 			}
 			plan = append(plan, Action{Resource: item})
