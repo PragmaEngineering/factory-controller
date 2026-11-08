@@ -1,12 +1,10 @@
 package factoryconfig
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,7 +14,7 @@ import (
 	"controls/internal/packagehash"
 )
 
-// Definition is the project-facing factory.json format. Paths in it are
+// Definition is the project-facing factory.yaml format. Paths in it are
 // resolved relative to the file, never relative to the CLI process.
 type Definition struct {
 	FactoryDir string          `json:"factory_dir,omitempty"`
@@ -103,7 +101,7 @@ func load(path, executionID string) (Resolved, error) {
 		if err != nil {
 			return Resolved{}, err
 		}
-		path = filepath.Join(path, "factory.json")
+		path = filepath.Join(path, "factory.yaml")
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -114,16 +112,7 @@ func load(path, executionID string) (Resolved, error) {
 		return Resolved{}, fmt.Errorf("read factory config %s: %w", abs, err)
 	}
 	var definition Definition
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&definition); err != nil {
-		return Resolved{}, fmt.Errorf("parse factory config %s: %w", abs, err)
-	}
-	var trailingValue any
-	if err := decoder.Decode(&trailingValue); err != io.EOF {
-		if err == nil {
-			return Resolved{}, fmt.Errorf("parse factory config %s: expected one JSON object", abs)
-		}
+	if err := decodeYAML(data, &definition); err != nil {
 		return Resolved{}, fmt.Errorf("parse factory config %s: %w", abs, err)
 	}
 	if definition.Name == "" {

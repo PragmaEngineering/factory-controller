@@ -202,6 +202,6 @@ func monitorHelp(output io.Writer) {
 
 Start in the foreground, or detach and print the URL, PID, and log path.
 Stop all Factory-managed detached monitors without stopping the execution service.
-Monitor must be installed separately; no factory.json is required.
+Monitor must be installed separately; no factory.yaml is required.
 `)
 }

@@ -4,49 +4,46 @@ A runnable package can be a coding agent, a script or a decision-model classifie
 
 ## Registration and settings
 
-```json
-{
-  "packages": [
-    {
-      "name": "readiness",
-      "path": "../registry/classifiers/task-readiness",
-      "entrypoint": "start.sh",
-      "overrides": {
-        "provider": "openrouter",
-        "model": "typesafe/jev-1.14",
-        "api_key_env": "OPENROUTER_API_KEY"
-      }
-    },
-    {
-      "name": "architect",
-      "path": "../registry/agents/architect",
-      "entrypoint": "start.sh",
-      "runtime": {"name":"pi","version":"=1.0.3"}
-    }
-  ]
-}
+```yaml
+packages:
+  - name: readiness
+    path: ../registry/classifiers/task-readiness
+    entrypoint: start.sh
+    overrides:
+      provider: openrouter
+      model: typesafe/jev-1.14
+      api_key_env: OPENROUTER_API_KEY
+  - name: architect
+    path: ../registry/agents/architect
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
 ```
 
-This is a configuration fragment. Paths resolve from `factory.json`, and every package starts with that file's directory as its working directory. `entrypoint` selects a file in the package; optional `args` are literal arguments except `{prompt}`, which substitutes the generated assignment. The package directory digest, `overrides` settings and optional `runtime` requirement participate in the pinned execution configuration. Secret values belong in the service environment, never `overrides`.
+This is a configuration fragment. Paths resolve from `factory.yaml`, and every package starts with that file's directory as its working directory. `entrypoint` selects a file in the package; optional `args` are literal arguments except `{prompt}`, which substitutes the generated assignment. The package directory digest, `overrides` settings and optional `runtime` requirement participate in the pinned execution configuration. Secret values belong in the service environment, never `overrides`.
 
-`overrides` is a JSON object interpreted by the selected package/runtime. The Pi adapter translates its finite [override schema](pi-overrides.md) into a private native profile; generic packages interpret their own schema. The classifier example reads `api_key_env` as an environment-variable **name**; another package may implement a different configuration schema. Packages should reject unsupported settings. No global provider/model default is introduced.
+`overrides` is a YAML mapping (passed to packages as JSON) interpreted by the selected package/runtime. The Pi adapter translates its finite [override schema](pi-overrides.md) into a private native profile; generic packages interpret their own schema. The classifier example reads `api_key_env` as an environment-variable **name**; another package may implement a different configuration schema. Packages should reject unsupported settings. No global provider/model default is introduced.
 
 The existing `agents` registration and `type: "agent"` / `agent` reference remain accepted shorthand for the same execution mechanism. Package names are unique across both registration lists. New generic examples use `packages` and `type: "run"` / `package`. A human `decision` step does not reference a runnable package.
 
 ## Binding inputs
 
-```json
-{
-  "name": "architecture",
-  "type": "run",
-  "package": "architect",
-  "input_bindings": {
-    "task": { "execution": "input" },
-    "evaluation_request": { "step": "check-readiness", "output": "request" },
-    "evaluation_response": { "step": "check-readiness", "output": "response" }
-  },
-  "on": { "completed": "$done" }
-}
+```yaml
+name: architecture
+type: run
+package: architect
+input_bindings:
+  task:
+    execution: input
+  evaluation_request:
+    step: check-readiness
+    output: request
+  evaluation_response:
+    step: check-readiness
+    output: response
+on:
+  completed: $done
 ```
 
 Each binding selects exactly one source:

@@ -30,7 +30,7 @@ func TestExecutionFilesAreCreatedPinnedAndSurviveReload(t *testing.T) {
 	project := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(project, "agent.sh"), []byte("#!/bin/sh\n"), 0700))
 	config := `{"name":"storage","factory_dir":".factory","packages":[{"name":"worker","path":".","entrypoint":"agent.sh","args":["${execution.files_dir}"]}],"workflow":{"start":"run","steps":[{"name":"run","type":"run","package":"worker","on":{"done":"$done"}}]}}`
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(config), 0600))
 	engine := &storageEngine{}
 	controller := Controller{Store: store, Engine: engine, Root: t.TempDir()}

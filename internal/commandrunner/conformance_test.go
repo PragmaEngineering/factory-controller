@@ -53,7 +53,7 @@ func TestRuntimeConformance(t *testing.T) {
 		definition := map[string]any{"name": "conformance", "packages": []any{map[string]any{"name": "worker", "path": "agent", "entrypoint": "worker", "runtime": map[string]any{"name": "fixture", "version": "=1.0.0"}, "overrides": map[string]any{"mode": mode, "message": "configured fixture"}}}, "workflow": map[string]any{"start": "work", "steps": []any{map[string]any{"name": "work", "type": "run", "package": "worker", "on": map[string]string{"ready": "$done"}}}}}
 		raw, err := json.Marshal(definition)
 		require.NoError(t, err)
-		file := filepath.Join(project, "factory.json")
+		file := filepath.Join(project, "factory.yaml")
 		require.NoError(t, os.WriteFile(file, raw, 0600))
 		resolved, err := factoryconfig.Load(file)
 		require.NoError(t, err)

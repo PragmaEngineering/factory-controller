@@ -24,14 +24,13 @@ Cost is shown only when every counted response has a reported price and no aggre
 
 Add `budget` to an executable step, including a step nested inside `stage.loop.steps`:
 
-```json
-"budget": {
-  "tokens": 2000000,
-  "elapsed_seconds": 1800,
-  "idle_seconds": 600,
-  "warn_percent": 80,
-  "action": "pause"
-}
+```yaml
+budget:
+  tokens: 2000000
+  elapsed_seconds: 1800
+  idle_seconds: 600
+  warn_percent: 80
+  action: pause
 ```
 
 | Field | Meaning |

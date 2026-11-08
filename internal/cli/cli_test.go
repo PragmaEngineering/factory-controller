@@ -47,8 +47,21 @@ func TestCLIExecContextAndInspection(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(packageRoot, "run.sh"), []byte("#!/bin/sh\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	config := `{"name":"fixture","agents":[{"name":"builder","path":"agent","entrypoint":"run.sh"}],"workflow":{"start":"build","steps":[{"name":"build","type":"agent","agent":"builder","on":{"completed":"$done"}}]}}`
-	configPath := filepath.Join(project, "factory.json")
+	config := `name: fixture
+agents:
+  - name: builder
+    path: agent
+    entrypoint: run.sh
+workflow:
+  start: build
+  steps:
+    - name: build
+      type: agent
+      agent: builder
+      on:
+        completed: $done
+`
+	configPath := filepath.Join(project, "factory.yaml")
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}

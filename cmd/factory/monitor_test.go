@@ -26,7 +26,7 @@ func TestMonitorLaunchIsIndependentOfProjectAndService(t *testing.T) {
 		project := t.TempDir()
 		t.Chdir(project)
 		if invalidConfig {
-			require.NoError(t, os.WriteFile(filepath.Join(project, "factory.json"), []byte("invalid json"), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(project, "factory.yaml"), []byte("invalid json"), 0600))
 		}
 		root := filepath.Join(t.TempDir(), "absent-runtime")
 		var output, diagnostics bytes.Buffer

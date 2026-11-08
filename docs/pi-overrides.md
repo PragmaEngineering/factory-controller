@@ -4,30 +4,29 @@ Reuse a Registry agent without editing its native profile. Set `runtime.name` to
 
 ## Custom provider example
 
-```json
-{
-  "name": "builder",
-  "path": "../registry/agents/coder_golang",
-  "entrypoint": "start.sh",
-  "runtime": {"name": "pi", "version": "=1.0.3"},
-  "overrides": {
-    "provider": "corporate",
-    "model": "coding-model",
-    "base_url": "https://ai.example.com/v1",
-    "api": "openai-completions",
-    "api_key_env": "CORPORATE_AI_KEY",
-    "thinking": "medium",
-    "model_config": {
-      "reasoning": true,
-      "context_window": 128000,
-      "max_tokens": 8192,
-      "input": ["text"]
-    }
-  }
-}
+```yaml
+name: builder
+path: ../registry/agents/coder_golang
+entrypoint: start.sh
+runtime:
+  name: pi
+  version: =1.0.3
+overrides:
+  provider: corporate
+  model: coding-model
+  base_url: https://ai.example.com/v1
+  api: openai-completions
+  api_key_env: CORPORATE_AI_KEY
+  thinking: medium
+  model_config:
+    reasoning: true
+    context_window: 128000
+    max_tokens: 8192
+    input:
+      - text
 ```
 
-This is a package registration fragment. Supply actual model capabilities and limits from your provider. Metadata is a declaration, not a capability probe against a remote service. Set `CORPORATE_AI_KEY` in the **execution service's environment** before starting that service. Exporting it only in the submitting terminal does not update an already running service. No key belongs in this JSON.
+This is a package registration fragment. Supply actual model capabilities and limits from your provider. Metadata is a declaration, not a capability probe against a remote service. Set `CORPORATE_AI_KEY` in the **execution service's environment** before starting that service. Exporting it only in the submitting terminal does not update an already running service. No key belongs in this configuration.
 
 A reviewer can use a different registration and credential environment name. To change credentials alone while retaining its bundled provider/model, use `"overrides": {"api_key_env": "REVIEW_AI_KEY"}`.
 

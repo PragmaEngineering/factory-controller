@@ -26,87 +26,164 @@ mkdir hello-go
 cd hello-go
 ```
 
-Run Factory from this project root. Commands initially start beside `factory.json`; source work stays in the launcher-selected workspace. Workflow documents and review evidence go to `.factory/executions/<execution-id>/files/`. When using Git, add `.factory/` to `.gitignore`.
+Run Factory from this project root. Commands initially start beside `factory.yaml`; source work stays in the launcher-selected workspace. Workflow documents and review evidence go to `.factory/executions/<execution-id>/files/`. When using Git, add `.factory/` to `.gitignore`.
 
-Create `factory.json` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent. `runtime` explicitly selects the Pi adapter and pins its tested 1.0.3 version requirement; install that version on the execution host. Controls prepares a private native profile, while each entrypoint retains its workspace and role/skill setup. Use per-agent `overrides` to select provider, model, endpoint and credential environment name without editing the bundled native defaults; see [Pi overrides](docs/pi-overrides.md). See [runtime setup and capabilities](docs/runtime-adapters.md).
+Create `factory.yaml` in `hello-go` with this content. The four `path` values assume `registry` is beside the project. If it lives elsewhere, change those values to the actual agent directories; absolute paths work too. `entrypoint` and `args` tell Factory how to start each agent. `runtime` explicitly selects the Pi adapter and pins its tested 1.0.3 version requirement; install that version on the execution host. Controls prepares a private native profile, while each entrypoint retains its workspace and role/skill setup. Use per-agent `overrides` to select provider, model, endpoint and credential environment name without editing the bundled native defaults; see [Pi overrides](docs/pi-overrides.md). See [runtime setup and capabilities](docs/runtime-adapters.md).
 
-```json
-{
-  "name": "golang",
-  "factory_dir": ".factory",
-  "agents": [
-    {"name": "architect", "path": "../registry/agents/architect", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
-    {"name": "architecture_reviewer", "path": "../registry/agents/architecture_reviewer", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
-    {"name": "coder_golang", "path": "../registry/agents/coder_golang", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]},
-    {"name": "code_reviewer_golang", "path": "../registry/agents/code_reviewer_golang", "entrypoint": "start.sh", "runtime": {"name": "pi", "version": "=1.0.3"}, "args": ["-p", "{prompt}"]}
-  ],
-  "workflow": {
-    "start": "specification",
-    "stages": [
-      {
-        "name": "design",
-        "loop": {
-          "mode": "sequential",
-          "limit": 3,
-          "steps": [
-            {
-              "name": "specification", "type": "agent", "agent": "architect",
-              "instructions": "Inspect the project and brief. Write spec.html and plan.html. Address prior architecture-review findings when present.",
-              "inputs": ["task brief", "project source"],
-              "outputs": ["spec.html", "plan.html"],
-              "outputs_on": ["completed", "ready_for_review"],
-              "on": {"completed": "architecture_review", "ready_for_review": "architecture_review", "failed": "$blocked"}
-            },
-            {
-              "name": "architecture_review", "type": "agent", "agent": "architecture_reviewer",
-              "instructions": "Critically review spec.html and plan.html against the brief and project. Write findings and verdict to reviews/architecture.md. Return changes_requested for material problems; otherwise completed.",
-              "inputs": ["task brief", "spec.html", "plan.html", "project source"],
-              "outputs": ["reviews/architecture.md"],
-              "outputs_on": ["completed", "changes_requested"],
-              "on": {"completed": "design_approval", "changes_requested": "specification", "failed": "$blocked"}
-            }
-          ]
-        },
-        "human": {"required": true, "step": "design_approval"}
-      },
-      {
-        "name": "implementation",
-        "loop": {
-          "mode": "sequential",
-          "limit": 3,
-          "steps": [
-            {
-              "name": "build", "type": "agent", "agent": "coder_golang",
-              "instructions": "Implement the approved spec and plan in the project root. Run relevant checks. Write commands, results, changed files, and limitations to reviews/build.md. Address prior code-review findings when present.",
-              "inputs": ["approved spec.html", "approved plan.html", "project source"],
-              "outputs": ["reviews/build.md"],
-              "outputs_on": ["completed", "ready_for_review"],
-              "on": {"completed": "code_review", "ready_for_review": "code_review", "failed": "$blocked"}
-            },
-            {
-              "name": "code_review", "type": "agent", "agent": "code_reviewer_golang",
-              "instructions": "Independently review the implementation against the approved spec and plan. Write findings and verification evidence to reviews/code.md. Return changes_requested for material problems; otherwise completed.",
-              "inputs": ["approved spec.html", "approved plan.html", "implementation changes"],
-              "outputs": ["reviews/code.md"],
-              "outputs_on": ["completed", "changes_requested"],
-              "on": {"completed": "acceptance", "changes_requested": "build", "failed": "$blocked"}
-            }
-          ]
-        },
-        "human": {"required": true, "step": "acceptance"}
-      }
-    ],
-    "steps": [
-      {"name": "design_approval", "type": "decision", "actor": "human", "artifacts": ["spec.html", "plan.html"], "on": {"approve": "build", "request_changes": "specification", "reject": "$blocked"}},
-      {"name": "acceptance", "type": "decision", "actor": "human", "on": {"approve": "$done", "request_changes": "build", "reject": "$blocked"}}
-    ]
-  }
-}
+```yaml
+name: golang
+factory_dir: .factory
+agents:
+  - name: architect
+    path: ../registry/agents/architect
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    args:
+      - -p
+      - '{prompt}'
+  - name: architecture_reviewer
+    path: ../registry/agents/architecture_reviewer
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    args:
+      - -p
+      - '{prompt}'
+  - name: coder_golang
+    path: ../registry/agents/coder_golang
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    args:
+      - -p
+      - '{prompt}'
+  - name: code_reviewer_golang
+    path: ../registry/agents/code_reviewer_golang
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    args:
+      - -p
+      - '{prompt}'
+workflow:
+  start: specification
+  stages:
+    - name: design
+      loop:
+        mode: sequential
+        limit: 3
+        steps:
+          - name: specification
+            type: agent
+            agent: architect
+            instructions: Inspect the project and brief. Write spec.html and plan.html. Address prior architecture-review findings when present.
+            inputs:
+              - task brief
+              - project source
+            outputs:
+              - spec.html
+              - plan.html
+            outputs_on:
+              - completed
+              - ready_for_review
+            on:
+              completed: architecture_review
+              ready_for_review: architecture_review
+              failed: $blocked
+          - name: architecture_review
+            type: agent
+            agent: architecture_reviewer
+            instructions: >-
+              Critically review spec.html and plan.html against the brief and project. Write findings and verdict to reviews/architecture.md. Return changes_requested for material problems; otherwise completed.
+            inputs:
+              - task brief
+              - spec.html
+              - plan.html
+              - project source
+            outputs:
+              - reviews/architecture.md
+            outputs_on:
+              - completed
+              - changes_requested
+            on:
+              completed: design_approval
+              changes_requested: specification
+              failed: $blocked
+      human:
+        required: true
+        step: design_approval
+    - name: implementation
+      loop:
+        mode: sequential
+        limit: 3
+        steps:
+          - name: build
+            type: agent
+            agent: coder_golang
+            instructions: >-
+              Implement the approved spec and plan in the project root. Run relevant checks. Write commands, results, changed files, and limitations to reviews/build.md. Address prior code-review findings when present.
+            inputs:
+              - approved spec.html
+              - approved plan.html
+              - project source
+            outputs:
+              - reviews/build.md
+            outputs_on:
+              - completed
+              - ready_for_review
+            on:
+              completed: code_review
+              ready_for_review: code_review
+              failed: $blocked
+          - name: code_review
+            type: agent
+            agent: code_reviewer_golang
+            instructions: >-
+              Independently review the implementation against the approved spec and plan. Write findings and verification evidence to reviews/code.md. Return changes_requested for material problems; otherwise completed.
+            inputs:
+              - approved spec.html
+              - approved plan.html
+              - implementation changes
+            outputs:
+              - reviews/code.md
+            outputs_on:
+              - completed
+              - changes_requested
+            on:
+              completed: acceptance
+              changes_requested: build
+              failed: $blocked
+      human:
+        required: true
+        step: acceptance
+  steps:
+    - name: design_approval
+      type: decision
+      actor: human
+      artifacts:
+        - spec.html
+        - plan.html
+      on:
+        approve: build
+        request_changes: specification
+        reject: $blocked
+    - name: acceptance
+      type: decision
+      actor: human
+      on:
+        approve: $done
+        request_changes: build
+        reject: $blocked
 ```
 
-The `agents` list selects packages; `workflow` defines order, routes, review-loop limits, and human decisions. Edit those fields to customize this project. The complete format is in the [factory.json reference](docs/factory-json.md).
+The `agents` list selects packages; `workflow` defines order, routes, review-loop limits, and human decisions. Edit those fields to customize this project. The complete format is in the [factory.yaml reference](docs/factory-yaml.md).
 
-The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTER_API_KEY` in the environment **before starting Factory**; the local service and agents inherit it. Keep credentials out of `factory.json`. For a different provider or model, set that agent registration's `overrides` in `factory.json` and supply its credential environment variable to the service. See [Pi overrides](docs/pi-overrides.md) for the schema and custom-model metadata. The local runner executes trusted agent packages with your user permissions.
+The bundled agents' native Pi profiles use OpenRouter by default. Set `OPENROUTER_API_KEY` in the environment **before starting Factory**; the local service and agents inherit it. Keep credentials out of `factory.yaml`. For a different provider or model, set that agent registration's `overrides` in `factory.yaml` and supply its credential environment variable to the service. See [Pi overrides](docs/pi-overrides.md) for the schema and custom-model metadata. The local runner executes trusted agent packages with your user permissions.
 
 ## 3. Run and watch the execution
 
@@ -128,7 +205,7 @@ npm run build
 npm link
 ```
 
-Then, from any directory (no `factory.json` is needed):
+Then, from any directory (no `factory.yaml` is needed):
 
 ```sh
 factory monitor start

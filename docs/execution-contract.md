@@ -1,6 +1,6 @@
 # Execution contract
 
-This document defines the **target** Factory Workflows execution contract. The [Go package](../execution/) expresses the core records and operations. The [Hatchet integration](../hatchetengine/) implements durable routing and waits, and the local controller exposes CLI execution, inspection, decisions, retries, and cancellation. Use the [factory.json reference](factory-json.md) for fields accepted today. Versioned admission, recovery, authority, artifact verification, and sandbox requirements below are design targets where the current implementation falls short.
+This document defines the **target** Factory Workflows execution contract. The [Go package](../execution/) expresses the core records and operations. The [Hatchet integration](../hatchetengine/) implements durable routing and waits, and the local controller exposes CLI execution, inspection, decisions, retries, and cancellation. Use the [factory.yaml reference](factory-yaml.md) for fields accepted today. Versioned admission, recovery, authority, artifact verification, and sandbox requirements below are design targets where the current implementation falls short.
 
 ## Terms
 
@@ -12,7 +12,7 @@ A **visit** begins each time routing enters a step. A review-to-build loop creat
 
 ## Workflow definition
 
-A workflow has one start step. Each step has a unique `name` in `factory.json`, a kind, and explicit outcome routes. Routes refer to step names or a terminal outcome. The controller assigns separate runtime IDs to executions and step visits. It may take a route only for an outcome accepted from the active attempt. An outcome with no route is invalid: the controller rejects it and surfaces the configuration problem rather than inferring success.
+A workflow has one start step. Each step has a unique `name` in `factory.yaml`, a kind, and explicit outcome routes. Routes refer to step names or a terminal outcome. The controller assigns separate runtime IDs to executions and step visits. It may take a route only for an outcome accepted from the active attempt. An outcome with no route is invalid: the controller rejects it and surfaces the configuration problem rather than inferring success.
 
 A run step references a named package whose snapshot is pinned by digest in the same configuration revision. Its declared inputs and outputs name the handoff contract. Optional `outputs_on` selects which outcomes require those output files; without it, all outcomes require them. This is workflow policy, independent of outcome spelling or the agent runner. A blocker can be reported without promised success artifacts when the workflow excludes that outcome from output requirements. The package may run an AI agent, a script, or a classifier. A decision step names the required authority, prompt, and available outcomes. To ask a person only when a criterion is met, route through a classifier or deterministic run step: one outcome reaches the decision step and another skips it. The controller does not invent a classification or decide on a person's behalf.
 

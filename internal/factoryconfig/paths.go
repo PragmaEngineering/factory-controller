@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// factory_dir is a literal path relative to factory.json, not a shell expression.
+// factory_dir is a literal path relative to factory.yaml, not a shell expression.
 func executionDirectories(configured, project, id string) (string, string, error) {
 	if configured == "" {
 		configured = ".factory"

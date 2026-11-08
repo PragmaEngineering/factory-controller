@@ -19,7 +19,7 @@ func TestLoadUsesProjectConfigDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := `{"name":"sample","agents":[{"name":"builder","path":` + strconv.Quote(packageRoot) + `,"entrypoint":"start.sh"}],"workflow":{"start":"build","steps":[{"name":"build","type":"agent","agent":"builder","on":{"completed":"$done"}}]}}`
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -33,9 +33,9 @@ func TestLoadUsesProjectConfigDirectory(t *testing.T) {
 }
 
 func TestLoadRejectsExtendsAndUnsupportedSettings(t *testing.T) {
-	for _, field := range []string{`"extends":"../base/factory.json",`, `"recipe":"README.md",`} {
+	for _, field := range []string{`"extends":"../base/factory.yaml",`, `"recipe":"README.md",`} {
 		t.Run(field, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "factory.json")
+			path := filepath.Join(t.TempDir(), "factory.yaml")
 			config := `{` + field + `"name":"sample"}`
 			if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 				t.Fatal(err)
@@ -72,7 +72,7 @@ func TestLoadStageLoopAndHumanDecision(t *testing.T) {
 			"steps":[{"name":"approval","type":"decision","actor":"human","on":{"approve":"$done","request_changes":"build"}}]
 		}
 	}`
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestLoadStageLoopAndHumanDecision(t *testing.T) {
 }
 
 func TestLoadRejectsStageStepsOutsideLoop(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "factory.json")
+	path := filepath.Join(t.TempDir(), "factory.yaml")
 	config := `{"name":"sample","workflow":{"start":"build","stages":[{"name":"implementation","steps":["build"],"loop":{"limit":2}}],"steps":[]}}`
 	if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestLoadRejectsIDInsteadOfName(t *testing.T) {
 		`{"name":"sample","workflow":{"start":"build","stages":[{"id":"implementation","loop":{"limit":2,"steps":[{"name":"build","type":"decision","actor":"human"}]}}]}}`,
 	} {
 		t.Run(config, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "factory.json")
+			path := filepath.Join(t.TempDir(), "factory.yaml")
 			if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -130,11 +130,11 @@ func TestExampleConfigLoadsWithAgentPackages(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	data, err := os.ReadFile(filepath.Join("..", "..", "factory.example.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "factory.example.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestConcurrentLoopConfiguration(t *testing.T) {
 		{"non-entry start", strings.Replace(base, `"start":"a"`, `"start":"b"`, 1), "first step"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			path := filepath.Join(root, "factory.json")
+			path := filepath.Join(root, "factory.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tc.config), 0600))
 			resolved, err := Load(path)
 			if tc.wantError != "" {
@@ -179,7 +179,7 @@ func TestLoadPinsNestedStepBudgets(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "start.sh"), []byte("#!/bin/sh\n"), 0700))
 	text := `{"name":"budget","agents":[{"name":"builder","path":".","entrypoint":"start.sh"}],"workflow":{"start":"build","stages":[{"name":"work","loop":{"limit":1,"steps":[{"name":"build","type":"agent","agent":"builder","budget":{"tokens":100,"warn_percent":80,"action":"pause"},"on":{"done":"$done"}}]}}],"steps":[]}}`
-	path := filepath.Join(root, "factory.json")
+	path := filepath.Join(root, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(text), 0600))
 	resolved, err := Load(path)
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestLoadHooksAtExecutionStageAndStep(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
 	hook := `{"name":"utility","command":"sh","arguments":["utility.sh","argument with spaces"]}`
 	text := `{"name":"hooks","hooks":{"before":[` + hook + `]},"agents":[{"name":"builder","path":".","entrypoint":"start.sh"}],"workflow":{"start":"build","stages":[{"name":"work","hooks":{"after":[` + hook + `]},"loop":{"limit":1,"steps":[{"name":"build","type":"agent","agent":"builder","hooks":{"before":[` + hook + `]},"on":{"done":"$done"}}]}}],"steps":[]}}`
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(text), 0600))
 	resolved, err := Load(path)
 	require.NoError(t, err)

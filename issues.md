@@ -60,7 +60,7 @@ The cumulative tool-failure counter is useful and must remain. It does not expla
 
 The control plane must persist the evidence behind each counted failure and make it directly inspectable in Monitor. This is not a request for another counter, browser-only storage, or a general-purpose web log viewer. Evidence must survive process exit, browser closure, and daemon restart for its configured retention period.
 
-Full tool arguments and results can be large and sensitive. Their retention must be an explicit, validated setting in the root `factory.json`, pinned with the execution rather than an undocumented UI limit or a daemon-global assumption.
+Full tool arguments and results can be large and sensitive. Their retention must be an explicit, validated setting in the root `factory.yaml`, pinned with the execution rather than an undocumented UI limit or a daemon-global assumption.
 
 ### Tool-failure evidence
 
@@ -105,26 +105,22 @@ Requirements:
 - Sanitize secrets before durable evidence storage and apply equivalent controls to downloads, exports, and raw representations. Preserve the redacted stored representation faithfully; do not promise unredacted originals as a fallback.
 - Define capture-size limits, storage-full behavior, and overflow/truncation indicators. Retention bounds time, not burst size; avoid unlimited argument/result ingestion. Do not silently convert storage failure into complete evidence.
 
-### Proposed factory.json retention configuration
+### Proposed factory.yaml retention configuration
 
 Design proposal only; review final naming and defaults before implementation:
 
-```json
-{
-  "name": "golang",
-  "retention": {
-    "tool_failure_evidence": {
-      "days": 30
-    }
-  }
-}
+```yaml
+name: golang
+retention:
+  tool_failure_evidence:
+    days: 30
 ```
 
 This is a fragment of a complete factory configuration. The proposed `days` value is a positive integer representing consecutive 24-hour periods. The suggested default is **30 days**, not a claim about current behavior. Reject zero, negative, fractional, malformed, or out-of-range values; do not overload zero to mean both disabled and forever. Choose and document a finite supported maximum. An unlimited-retention option is not required for the first implementation.
 
 Retention semantics to implement and document:
 
-1. **Per execution, frozen at submission.** Resolve defaults and pin the policy in the execution configuration. Changing a project's `factory.json` affects future executions; it must not silently shorten an existing execution's evidence retention.
+1. **Per execution, frozen at submission.** Resolve defaults and pin the policy in the execution configuration. Changing a project's `factory.yaml` affects future executions; it must not silently shorten an existing execution's evidence retention.
 2. **Protect active work.** Start the proposed retention clock when the execution reaches a terminal state, not when one tool call fails. Running, blocked, waiting-for-human, and otherwise resumable executions retain their evidence. Define how explicit future continuation/reopening affects eligibility before enabling it.
 3. **Preserve measurements.** Expiring large argument/result/attachment payloads does not decrement historical failure counts or erase failure identity and timing from retained execution history. Keep a lightweight tombstone with availability and expiry information until the parent history itself is removed. The UI may show, for example, nine historical failures with three payloads expired.
 4. **Use authoritative timestamps.** Compute eligibility from persisted terminal/retention timestamps, with documented UTC calculations. A pending review or supported explicit reference that requires evidence must not be broken without a defined retention rule.
@@ -237,7 +233,7 @@ Trace the source-directory context supplied by Controls, the Registry launch scr
 
 ### Investigation and implementation
 
-The launchers already changed into the configured source workspace. The generic assignment nevertheless prominently included the original `factory.json` directory, and native injection did not state its actual working directory. That conflicting context is a confirmed contributing defect; code inspection alone cannot establish why the earlier model chose each `cd`.
+The launchers already changed into the configured source workspace. The generic assignment nevertheless prominently included the original `factory.yaml` directory, and native injection did not state its actual working directory. That conflicting context is a confirmed contributing defect; code inspection alone cannot establish why the earlier model chose each `cd`.
 
 - Removed the configuration-directory path from the generic source instructions. The native Pi bridge now identifies its actual process working directory after script-owned selection as authoritative for source reads, edits and checks.
 - Clarified Registry role instructions and the Go factory's build instruction. Execution-file paths and host artifact collection remain separate and unchanged; Controls gains no Git logic or script-specific workspace discovery.
@@ -255,7 +251,7 @@ The launchers already changed into the configured source workspace. The generic 
 
 ### Problem
 
-A team must be able to reuse a Registry agent while selecting its own provider, model, API endpoint, credential environment variable and supported model options in `factory.json`. Editing each downloaded agent bundle is fragile, duplicates configuration and makes updates difficult. Global provider defaults are insufficient: the architect, builder and reviewer may deliberately use different providers, models and credentials in the same execution.
+A team must be able to reuse a Registry agent while selecting its own provider, model, API endpoint, credential environment variable and supported model options in `factory.yaml`. Editing each downloaded agent bundle is fragile, duplicates configuration and makes updates difficult. Global provider defaults are insufficient: the architect, builder and reviewer may deliberately use different providers, models and credentials in the same execution.
 
 Passing arbitrary JSON to a package does not implement this behavior. Someone must know how a particular runner stores configuration, selects its model, resolves credentials and launches a session. For Pi, that knowledge includes `settings.json`, `models.json`, command-line options and any relevant runner-version differences. It must not be independently reimplemented in every Registry role's launcher or left for the model to interpret.
 
@@ -288,35 +284,33 @@ The existing JavaScript Pi session integration may remain where native Pi APIs m
 
 Use the existing package-level `overrides` mechanism for overrides rather than introducing an unrelated root-level provider defaults block. Implemented configuration fragment:
 
-```json
-{
-  "packages": [
-    {
-      "name": "builder",
-      "path": "../registry/agents/coder_golang",
-      "entrypoint": "start.sh",
-      "runtime": {"name":"pi","version":"=1.0.3"},
-      "overrides": {
-        "provider": "corporate-gateway",
-        "model": "coding-model",
-        "base_url": "https://ai.example.com/v1",
-        "api": "openai-completions",
-        "api_key_env": "CORPORATE_AI_KEY",
-        "thinking": "medium",
-        "model_config": {"reasoning":true,"context_window":128000,"max_tokens":8192}
-      }
-    },
-    {
-      "name": "reviewer",
-      "path": "../registry/agents/code_reviewer_golang",
-      "entrypoint": "start.sh",
-      "runtime": {"name":"pi","version":"=1.0.3"},
-      "overrides": {
-        "api_key_env": "REVIEW_AI_KEY"
-      }
-    }
-  ]
-}
+```yaml
+packages:
+  - name: builder
+    path: ../registry/agents/coder_golang
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    overrides:
+      provider: corporate-gateway
+      model: coding-model
+      base_url: https://ai.example.com/v1
+      api: openai-completions
+      api_key_env: CORPORATE_AI_KEY
+      thinking: medium
+      model_config:
+        reasoning: true
+        context_window: 128000
+        max_tokens: 8192
+  - name: reviewer
+    path: ../registry/agents/code_reviewer_golang
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+    overrides:
+      api_key_env: REVIEW_AI_KEY
 ```
 
 `api` identifies the native API protocol, not the provider's display name. The supported protocol spellings and native mappings are documented in [Pi overrides](docs/pi-overrides.md). Provider endpoint and credential references must be resolved coherently with the selected model's native definition.
@@ -365,7 +359,7 @@ Packages may use `overrides` for other purposes. Strict validation belongs to th
 3. Implement version detection, compatibility validation and deterministic native profile generation in the Pi adapter.
 4. Wire the managed launch path and preflight to use the generated profile. Consolidate the relevant duplicated Registry launcher behavior rather than introducing a second translation implementation. Preserve standalone agent operation and existing workspace selection.
 5. Persist safe requested/resolved settings and compatibility metadata so users can inspect which provider/model was actually used. Keep resource telemetry's observed provider/model available to diagnose divergence from requested settings.
-6. Update [package configuration](docs/packages.md), [factory configuration](docs/factory-json.md), [runtime adapters](adapters/README.md), [Pi adapter](adapters/pi/README.md), [factory.example.json](factory.example.json), and relevant Registry agent setup/launch documentation. Clearly distinguish working support from future runners.
+6. Update [package configuration](docs/packages.md), [factory configuration](docs/factory-yaml.md), [runtime adapters](adapters/README.md), [Pi adapter](adapters/pi/README.md), [factory.example.yaml](factory.example.yaml), and relevant Registry agent setup/launch documentation. Clearly distinguish working support from future runners.
 
 ### Required contributor guide: adding another agent runner
 
@@ -415,7 +409,7 @@ No workflow redesign, role-specific adapter packages, global provider defaults, 
 - Added a finite Pi schema and invocation-private native translation, credential-reference precedence, offline native RPC preflight and actual-session verification before assignment. No global provider defaults or changes to bundle files.
 - Added safe native resolution metadata and same-visit retry fencing for changed runner/adapter versions. Pi 1.0.3 remains the sole supported release.
 - Added schema, malformed/unsupported configuration, private credential/profile, concurrent preparation, prepared-process launch, actual-session conflict and retry regression tests. Existing non-Pi conformance coverage remains independent of Pi.
-- Updated [factory.example.json](factory.example.json), [Pi configuration guide](docs/pi-overrides.md), contributor documentation, Registry docs and published architecture references.
+- Updated [factory.example.yaml](factory.example.yaml), [Pi configuration guide](docs/pi-overrides.md), contributor documentation, Registry docs and published architecture references.
 - Native smoke verification uses installed Pi 1.0.3 in offline mode and asserts zero provider requests. No paid model calls, live eval, production service restart or commits.
 - Verification passed: `go test ./...`, `go vet ./...`, race tests for adapters/command runner/sessions, Controls npm tests (12 passed), Registry tests (30 passed; optional installed-skill-loader test skipped). The separate installed-Pi override smoke check passed.
 

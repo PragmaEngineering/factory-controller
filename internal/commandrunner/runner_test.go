@@ -79,7 +79,7 @@ func fixture(t *testing.T) execution.Work {
 	require.NoError(t, os.Mkdir(agent, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(agent, "run.sh"), []byte("#!/bin/sh\n"), 0700))
 	config := `{"name":"fixture","agents":[{"name":"script","path":"agent","entrypoint":"run.sh","args":["{prompt}"]}],"workflow":{"start":"work","steps":[{"name":"work","type":"agent","agent":"script","on":{"ready":"$done"}}]}}`
-	path := filepath.Join(root, "factory.json")
+	path := filepath.Join(root, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(config), 0600))
 	resolved, err := factoryconfig.Load(path)
 	require.NoError(t, err)

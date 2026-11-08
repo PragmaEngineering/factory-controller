@@ -2,7 +2,7 @@
 
 The [Factory operator skill](../skills/factory-operator/SKILL.md) lets a user invoke Factory from Codex, Claude Code, or another agent with skills and shell access. The external agent operates the CLI and reports progress; Factory remains responsible for running the configured workflow.
 
-Install the `factory` binary and configure the project's `factory.json` first; see the [tutorial](../tutorial.md). The operator skill does not install workers, change models, or replace the agent packages selected by that file. It uses no worker MCP credentials. The calling agent needs permission to invoke the local CLI and read the relevant project/evidence files.
+Install the `factory` binary and configure the project's `factory.yaml` first; see the [tutorial](../tutorial.md). The operator skill does not install workers, change models, or replace the agent packages selected by that file. It uses no worker MCP credentials. The calling agent needs permission to invoke the local CLI and read the relevant project/evidence files.
 
 ## Make the skill available
 

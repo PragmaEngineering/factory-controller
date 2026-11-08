@@ -33,7 +33,7 @@ func Help(w io.Writer) {
   factory monitor start [-d] [--port PORT]
   factory monitor stop
   factory prune [--all] [--dry-run] [--yes]
-  factory exec [brief] [-f file ...] [-c factory.json] [--context ID]
+  factory exec [brief] [-f file ...] [-c factory.yaml] [--context ID]
   factory ls [--context ID] [-o json]
   factory get-context | set-context ID | contexts
   factory inbox [--context ID]
@@ -136,14 +136,14 @@ func execCommand(ctx context.Context, args []string, client *control.Client, std
 		if err != nil {
 			return err
 		}
-		configPath = filepath.Join(cwd, "factory.json")
+		configPath = filepath.Join(cwd, "factory.yaml")
 	}
 	configPath, err = filepath.Abs(configPath)
 	if err != nil {
 		return err
 	}
 	if _, err := os.Stat(configPath); err != nil {
-		return fmt.Errorf("factory.json not found at %s; pass -c /path/to/factory.json: %w", configPath, err)
+		return fmt.Errorf("factory.yaml not found at %s; pass -c /path/to/factory.yaml: %w", configPath, err)
 	}
 	files := make([]string, 0, len(options["file"]))
 	var stdinData []byte

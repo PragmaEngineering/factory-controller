@@ -1,6 +1,6 @@
 # Local service recovery
 
-These commands work without `factory.json` and do not require a running daemon.
+These commands work without `factory.yaml` and do not require a running daemon.
 
 ```bash
 factory stop          # graceful service shutdown; preserve history and files

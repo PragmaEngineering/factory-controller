@@ -28,7 +28,7 @@ type Bundle struct {
 
 // Capture stores an immutable copy of each CLI input for one execution.
 // Paths are resolved from the caller's working directory, independent of the
-// factory.json location. A single '-' reads stdin once.
+// factory.yaml location. A single '-' reads stdin once.
 func Capture(directory, brief string, files []string, stdin io.Reader) (Bundle, error) {
 	if strings.TrimSpace(brief) == "" && len(files) == 0 {
 		return Bundle{}, errors.New("provide a brief or at least one --file")

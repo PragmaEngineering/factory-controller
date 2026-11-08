@@ -20,7 +20,7 @@ The interfaces are in [execution/runtime.go](../execution/runtime.go), [native r
 Before this boundary, every package was recorded as `command`; scripts independently prepared native profiles and chose a native bridge. The managed sequence is now:
 
 ```text
-factory.json → pinned package + native runtime requirement
+factory.yaml → pinned package + native runtime requirement
   → command runner: private invocation files and scoped MCP assignment
   → selected adapter: capability check, native validation/preparation
   → session supervisor: package entrypoint, runtime identity and private environment
@@ -34,25 +34,22 @@ No new package ecosystem or dynamic adapter discovery is involved.
 
 ## Register a package
 
-```json
-{
-  "packages": [
-    {
-      "name": "builder",
-      "path": "../registry/agents/coder_golang",
-      "entrypoint": "start.sh",
-      "runtime": {
-        "name": "pi",
-        "version": "=1.0.3",
-        "executable": "/opt/tools/pi"
-      },
-      "args": ["--workspace", "${variables.workspace}", "{prompt}"]
-    }
-  ]
-}
+```yaml
+packages:
+  - name: builder
+    path: ../registry/agents/coder_golang
+    entrypoint: start.sh
+    runtime:
+      name: pi
+      version: =1.0.3
+      executable: /opt/tools/pi
+    args:
+      - --workspace
+      - ${variables.workspace}
+      - '{prompt}'
 ```
 
-This is a fragment; `variables.workspace` must be defined by the factory. Paths to packages resolve from `factory.json`. `runtime.executable` selects an installed native program on the execution host, not a new source workspace; omit it to use the adapter's default executable on the service's `PATH`. A relative executable path containing a path separator resolves from `factory.json`; a bare command name resolves on the execution service’s `PATH`.
+This is a fragment; `variables.workspace` must be defined by the factory. Paths to packages resolve from `factory.yaml`. `runtime.executable` selects an installed native program on the execution host, not a new source workspace; omit it to use the adapter's default executable on the service's `PATH`. A relative executable path containing a path separator resolves from `factory.yaml`; a bare command name resolves on the execution service’s `PATH`.
 
 `runtime.name` selects a statically registered adapter. `runtime.version` is an optional semantic-version constraint intersected with the adapter's supported range. The requirement participates in the pinned execution definition. An absent `runtime` means an opaque `command` package, not inferred Pi support. Such packages can use MCP themselves, but Controls does not advertise native agent capabilities on their behalf. Concurrent loops require an explicitly capable adapter.
 

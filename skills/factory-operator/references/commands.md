@@ -4,7 +4,7 @@ Run from the intended project directory. Uppercase IDs and paths below stand for
 
 ## Service lifecycle
 
-`factory start` explicitly starts the shared local service and waits for readiness. Both `start` and `stop` work from any directory without reading `factory.json`; they manage the per-user daemon, not a project or execution. Operational commands never start it. When authorized to run a workflow, start the service if needed before submission. For an inspection-only request, report that the service is unavailable rather than starting it without authorization. `factory stop` affects all projects and agents using the shared service; only run it when the user requests service shutdown. Use execution cancellation for one workflow.
+`factory start` explicitly starts the shared local service and waits for readiness. Both `start` and `stop` work from any directory without reading `factory.yaml`; they manage the per-user daemon, not a project or execution. Operational commands never start it. When authorized to run a workflow, start the service if needed before submission. For an inspection-only request, report that the service is unavailable rather than starting it without authorization. `factory stop` affects all projects and agents using the shared service; only run it when the user requests service shutdown. Use execution cancellation for one workflow.
 
 ## Start or locate an execution
 
@@ -13,14 +13,14 @@ factory                                      # help; does not launch work
 factory start                                # explicit startup for an authorized run
 factory exec "Add the requested behavior" --context '*'
 factory exec "Use these documents" -f /path/brief.md -f /path/constraints.md --context '*'
-factory exec -f /path/brief.md -c /path/project/factory.json --context '*'
+factory exec -f /path/brief.md -c /path/project/factory.yaml --context '*'
 factory exec -f - --context '*'              # provide the request on stdin
 factory ls -o json
 factory ls --context CONTEXT_ID -o json
 factory EXECUTION_ID -o json
 ```
 
-Config resolution is exact: `./factory.json`, or the supplied `-c` path. Factory does not search parents. Relative agent paths resolve from that configuration's directory, which is also the project working directory. Each `exec` creates a distinct execution; it is not a resume command. Input files are captured by Factory for that execution. Credentials belong in the configured environment, not input files or messages.
+Config resolution is exact: `./factory.yaml`, or the supplied `-c` path. Factory does not search parents. Relative agent paths resolve from that configuration's directory, which is also the project working directory. Each `exec` creates a distinct execution; it is not a resume command. Input files are captured by Factory for that execution. Credentials belong in the configured environment, not input files or messages.
 
 `exec` prints `CONTEXT`, `EXECUTION`, `CONFIG`, and `STATE`. JSON execution inspection returns a resource envelope with `type` and `execution`. The execution contains `state`, `steps`, `requests`, `error`, and pinned `configuration`. Steps have `key` (configured name), `id` (runtime ID), `visit`, `try`, `state`, and `sessions` (session IDs). Use the current visit/attempt, not an older session with the same step name.
 

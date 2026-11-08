@@ -14,7 +14,7 @@ func TestPackagesPinOverridesAndResolveBindings(t *testing.T) {
 	project := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
 	config := `{"name":"readiness","packages":[{"name":"classifier","path":".","entrypoint":"start.sh","overrides":{"model":"version-1","api_key_env":"MY_PROVIDER_KEY"}},{"name":"architect","path":".","entrypoint":"start.sh"}],"workflow":{"start":"evaluate","steps":[{"name":"evaluate","type":"run","package":"classifier","input_bindings":{"task":{"execution":"input"}},"on":{"completed":"plan"}},{"name":"plan","type":"run","package":"architect","input_bindings":{"response":{"step":"evaluate","output":"response"}},"on":{"completed":"$done"}}]}}`
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(config), 0600))
 	resolved, err := Load(path)
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestRuntimeRequirementIsValidatedAndPinned(t *testing.T) {
 	project := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(project, "start.sh"), []byte("#!/bin/sh\n"), 0700))
 	config := `{"name":"native","packages":[{"name":"role","path":".","entrypoint":"start.sh","runtime":{"name":"pi","version":"=1.0.3","executable":"./tools/pi"}}],"workflow":{"start":"work","steps":[{"name":"work","type":"run","package":"role","on":{"done":"$done"}}]}}`
-	file := filepath.Join(project, "factory.json")
+	file := filepath.Join(project, "factory.yaml")
 	require.NoError(t, os.WriteFile(file, []byte(config), 0600))
 	first, err := Load(file)
 	require.NoError(t, err)

@@ -6,7 +6,7 @@ See [Communication and completion](docs/communications.md) for the implemented s
 
 **Status: implemented local integration.** The thread MCP service, communication skill, Pi delivery adapter, sequential/concurrent loop modes, publication, and inbox projection are implemented. This document explains their contract and remaining limits. The original result-file completion path is removed.
 
-Start with the [factory.json reference](docs/factory-json.md) and [runner setup](adapters/README.md). The canonical [communication skill](internal/comms/skill/SKILL.md) is embedded in the control-plane binary and provisioned for each managed invocation.
+Start with the [factory.yaml reference](docs/factory-yaml.md) and [runner setup](adapters/README.md). The canonical [communication skill](internal/comms/skill/SKILL.md) is embedded in the control-plane binary and provisioned for each managed invocation.
 
 ## Design decisions
 

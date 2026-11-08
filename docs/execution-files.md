@@ -1,18 +1,15 @@
 # Execution files and variables
 
-Project source and execution documents have separate storage. `factory_dir` is a literal filesystem path, defaulting to `.factory`. Relative paths resolve beside `factory.json`; absolute paths are allowed. No shell, environment or tilde expansion is performed.
+Project source and execution documents have separate storage. `factory_dir` is a literal filesystem path, defaulting to `.factory`. Relative paths resolve beside `factory.yaml`; absolute paths are allowed. No shell, environment or tilde expansion is performed.
 
-```json
-{
-  "factory_dir": ".factory",
-  "variables": {
-    "worktree": "${execution.factory_dir}/worktrees/${execution.id}",
-    "workspace": "${variables.worktree}"
-  }
-}
+```yaml
+factory_dir: .factory
+variables:
+  worktree: ${execution.factory_dir}/worktrees/${execution.id}
+  workspace: ${variables.worktree}
 ```
 
-Each new execution creates `<factory_dir>/executions/<execution-id>/files/` before hooks or agents start. Frozen input copies live in its sibling `inputs/` directory. The execution directory has mode `0700`. Steps, review loops and retries share the same pinned files path; controller restarts and later edits to factory.json do not relocate existing executions. Files remain after success, failure or cancellation. Deletion is an explicit operator action after active processes have stopped.
+Each new execution creates `<factory_dir>/executions/<execution-id>/files/` before hooks or agents start. Frozen input copies live in its sibling `inputs/` directory. The execution directory has mode `0700`. Steps, review loops and retries share the same pinned files path; controller restarts and later edits to factory.yaml do not relocate existing executions. Files remain after success, failure or cancellation. Deletion is an explicit operator action after active processes have stopped.
 
 Add the configured runtime directory to the project's `.gitignore`; for the default, use `.factory/`. Controls does not edit project ignore rules. A dot directory and permissions are not a sandbox: agents running as the host user can access other host files. Container volumes and remote artifact transport are separate runtime capabilities, not provided by this change.
 
@@ -21,7 +18,7 @@ Add the configured runtime directory to the project's `.gitignore`; for the defa
 | Reference | Value |
 |---|---|
 | `${execution.id}` | Stable execution ID |
-| `${execution.project}` | Absolute directory containing factory.json; the initial command directory |
+| `${execution.project}` | Absolute directory containing factory.yaml; the initial command directory |
 | `${execution.factory_dir}` | Absolute configured factory directory |
 | `${execution.files_dir}` | Absolute execution files directory |
 | `${variables.NAME}` | A declared string variable |
@@ -32,12 +29,13 @@ References are supported in package `path`, `entrypoint`, `args`, and hook `comm
 
 `LoadExecution` binds the configuration once with its allocated execution ID. The database stores the bound values, arguments, storage paths and configuration digest. Retries use those records. Do not put secret values in variables: configuration and command arguments are recorded. Existing provider credential references remain supported by their native bundles.
 
-```json
-{
-  "name": "prepare",
-  "command": "python3",
-  "arguments": ["/installed/prepare.py", "--files-dir", "${execution.files_dir}"]
-}
+```yaml
+name: prepare
+command: python3
+arguments:
+  - /installed/prepare.py
+  - --files-dir
+  - ${execution.files_dir}
 ```
 
 There is no `FACTORY_FILES_DIR` environment variable. Commands receive paths through explicit arguments; hook stdin also contains `files_dir` and the resolved `variables` map. Agent assignments identify the files directory and each required output's absolute path.

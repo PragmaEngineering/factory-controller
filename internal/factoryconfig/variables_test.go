@@ -22,7 +22,7 @@ func variableFixture(t *testing.T, variables map[string]string, arguments []stri
 		"workflow": map[string]any{"start": "run", "steps": []any{map[string]any{"name": "run", "type": "run", "package": "worker", "on": map[string]string{"done": "$done"}}}}}
 	raw, err := json.Marshal(definition)
 	require.NoError(t, err)
-	path := filepath.Join(project, "factory.json")
+	path := filepath.Join(project, "factory.yaml")
 	require.NoError(t, os.WriteFile(path, raw, 0600))
 	return path
 }

@@ -127,7 +127,7 @@ func TestDaemonLifecycleIgnoresProjectConfiguration(t *testing.T) {
 	for _, withInvalidConfig := range []bool{false, true} {
 		directory := t.TempDir()
 		if withInvalidConfig {
-			require.NoError(t, os.WriteFile(filepath.Join(directory, "factory.json"), []byte("invalid project configuration"), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(directory, "factory.yaml"), []byte("invalid project configuration"), 0600))
 		}
 		t.Chdir(directory)
 		for _, command := range []string{"start", "stop"} {

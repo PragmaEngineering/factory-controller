@@ -11,7 +11,7 @@ Read [commands and resource IDs](references/commands.md) when selecting commands
 
 ## Establish the target
 
-For a new run, identify the project, requested work, and `factory.json`. Default to the file in the project working directory; `-c` selects another exact file. Its containing directory becomes the agents' working directory. Read enough configuration to identify the workflow, agent packages, and decision policy. If the configuration is missing or ambiguous, resolve that with the user; do not invent or silently rewrite it.
+For a new run, identify the project, requested work, and `factory.yaml`. Default to the file in the project working directory; `-c` selects another exact file. Its containing directory becomes the agents' working directory. Read enough configuration to identify the workflow, agent packages, and decision policy. If the configuration is missing or ambiguous, resolve that with the user; do not invent or silently rewrite it.
 
 For an existing run, inspect the execution ID the user supplies. If the target is unclear, list executions and resolve the ambiguity before sending messages or taking actions. Retain the execution ID, context ID, relevant step/session IDs, outstanding requests, and last observed state across turns. Names, IDs, and OS process IDs are different things.
 

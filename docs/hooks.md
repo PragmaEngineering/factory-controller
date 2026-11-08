@@ -4,19 +4,17 @@ Hooks run trusted host utilities at deterministic execution, stage, and step bou
 
 ## Configuration
 
-The same object is accepted at the root of `factory.json`, on a stage, and on a step (including a step nested in a loop):
+The same object is accepted at the root of `factory.yaml`, on a stage, and on a step (including a step nested in a loop):
 
-```json
-"hooks": {
-  "before": [
-    {
-      "name": "prepare",
-      "command": "python3",
-      "arguments": ["/path/to/utility.py", "argument with spaces"]
-    }
-  ],
-  "after": []
-}
+```yaml
+hooks:
+  before:
+    - name: prepare
+      command: python3
+      arguments:
+        - /path/to/utility.py
+        - argument with spaces
+  after: []
 ```
 
 | Scope | Before | After |
@@ -31,7 +29,7 @@ Concurrent step `before` hooks execute in configuration order before **any** mem
 
 Hooks in each list run sequentially. Names must be unique within a scope's `before` list and within its `after` list; the same name may appear in another scope or boundary. Unknown keys are rejected. There is no implicit shell, argument substitution, executable installation, or Registry lookup. Use `"command":"go","arguments":["run","./utility"]`, rather than `"command":"go run"`.
 
-The working directory is the directory containing `factory.json`, which is the initial project directory; scripts may select another workspace. Relative script paths resolve there. Hook command/argument references bind once using the [execution variables contract](execution-files.md). The hook stdin includes `files_dir` and the resolved variables; no new environment variables are required. Bare commands resolve through the host service's PATH. Hooks inherit the service's permitted process environment; credentials and signing configuration must already be available. Keep secrets in the host environment rather than recorded hook arguments or context. Hook configuration is recorded with the execution; referenced utility files are not copied or hashed, so retain the selected utility version for reproducible runs.
+The working directory is the directory containing `factory.yaml`, which is the initial project directory; scripts may select another workspace. Relative script paths resolve there. Hook command/argument references bind once using the [execution variables contract](execution-files.md). The hook stdin includes `files_dir` and the resolved variables; no new environment variables are required. Bare commands resolve through the host service's PATH. Hooks inherit the service's permitted process environment; credentials and signing configuration must already be available. Keep secrets in the host environment rather than recorded hook arguments or context. Hook configuration is recorded with the execution; referenced utility files are not copied or hashed, so retain the selected utility version for reproducible runs.
 
 ## Standard input
 
@@ -80,13 +78,13 @@ External effects and the database cannot be committed atomically. A process migh
 
 ## Registry Git utilities
 
-[The example configuration](../factory.example.json) demonstrates three injected hooks:
+[The example configuration](../factory.example.yaml) demonstrates three injected hooks:
 
 1. Execution `before`: [prepare one execution worktree](../../registry/skills/git-worktree/SKILL.md).
 2. Stage `after`: commit explicitly scoped project changes after the stage's configured human gate.
 3. Execution `after`: release the worktree receipt on successful completion, retaining the worktree and branch.
 
-See [factory.example.json](../factory.example.json) and the [Go factory configuration](../../registry/factories/golang/factory.json). Replace package and utility paths for your installation. The worktree utility creates both the checkout and its execution branch; no separate branch utility is involved. Uncommitted source-checkout changes are not included, and that checkout is never switched or reset.
+See [factory.example.yaml](../factory.example.yaml) and the [Go factory configuration](../../registry/factories/golang/factory.yaml). Replace package and utility paths for your installation. The worktree utility creates both the checkout and its execution branch; no separate branch utility is involved. Uncommitted source-checkout changes are not included, and that checkout is never switched or reset.
 
 The declared workspace variable is passed explicitly to launchers and commit scripts. Controls does not interpret it as a worktree or change its process working directory. Python 3.9+ and Git are prerequisites for these optional Unix utilities; Controls does not require Git. Execution documents belong to [execution storage](execution-files.md), outside project commits. The Go design-stage hook records a no-change receipt when there are no project changes.
 

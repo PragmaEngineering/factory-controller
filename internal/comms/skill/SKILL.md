@@ -70,4 +70,4 @@ Submit a final result for this invocation:
 
 For exchanges, state the publication/revision, concrete requested action, and open finding IDs. Consolidate related findings rather than sending each tentative observation. On subsequent reads, use the returned cursor instead of reloading the full history; inspect earlier messages only when needed. Runtime-delivered messages already contain their content: act on them rather than fetching the same history again. Do not repeat participant discovery unless membership or responsibilities change.
 
-Workflow file publication and required output names resolve under the execution files directory supplied in your assignment. Project source and workflow documents are separate; do not copy deliverables beside factory.json. Use the assigned absolute deliverable paths when writing or rendering them.
+Workflow file publication and required output names resolve under the execution files directory supplied in your assignment. Project source and workflow documents are separate; do not copy deliverables beside factory.yaml. Use the assigned absolute deliverable paths when writing or rendering them.
