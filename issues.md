@@ -831,3 +831,88 @@ The authenticated invocation binds the destination execution. A caller must not 
 - Do not add spec/plan-specific semantics, a new workflow DSL, container runtime, or agent framework as part of this issue. Filesystem isolation remains a separate capability.
 - Coordinate evidence/drill-down with CTRL-002, restart/write recovery with CTRL-008, and regression evaluation with CTRL-013.
 - This issue records a proposal. It authorizes no code changes, live messages, retries, filesystem repair, or changes to recorded eval evidence.
+
+
+## CTRL-015 — Declare execution-scoped volumes and mount them into workflow participants
+
+Status: proposed; implementation not authorized.
+
+### Problem
+
+Workflow participants need to share selected files through an explicit storage contract. Today, source workspaces, execution files, launcher arguments, artifact collection, and agent-generated paths can carry different assumptions about where files belong. Repeating absolute paths in prompts has not reliably prevented incorrect destinations (CTRL-014).
+
+Introduce named volumes, declared once in factory.yaml and mounted by the steps that need them. The model follows Docker volumes and Kubernetes mounts: Controls manages storage and attachment, while participants own the content and its meaning. A name such as `design` is user-defined, not a built-in volume type.
+
+### Contract and ownership
+
+- **Volume declaration:** names execution-scoped mutable storage, optionally initialized from a configured directory.
+- **Mount declaration:** references a declared volume and specifies its target location and requested read/write access for a participant.
+- **Sharing:** mounts of the same volume within an execution refer to the same underlying storage. Different executions receive separate storage even when volume names match.
+- **Opaque contents:** Controls must not define expected filenames, document schemas, or spec/plan semantics inside a volume. Those conventions belong to the factory, initializer, and agent bundles/skills.
+- **Component boundaries:** the volume manager owns provisioning and lifecycle; the execution runner requests attachments; the runtime adapter realizes mounts through a defined interface. Consumers must not inspect another component's private directories or reconstruct its storage layout.
+
+### Illustrative configuration
+
+This is proposed syntax for interface review, not supported configuration:
+
+```yaml
+volumes:
+  shared:
+    initialize:
+      from: ./templates/shared
+  feedback: {}
+```
+
+A run step could attach those declarations as follows:
+
+```yaml
+name: author
+type: run
+package: author
+mounts:
+  - volume: shared
+    target: /shared
+    read_only: false
+  - volume: feedback
+    target: /feedback
+    read_only: true
+```
+
+Another step can mount `shared` read-only and `feedback` read/write. No file inventory is required in the volume declaration. Review final field names and target semantics before implementation.
+
+### Proposed initial scope
+
+1. **Local execution volumes.** Start with empty storage or initialization from a configured directory. Resolve initializer paths relative to factory.yaml, capture their contents/digest through the configuration-pinning contract, and document treatment of permissions and symbolic links. Persistent cross-execution volumes, remote storage, and arbitrary initializer commands are deferred.
+2. **Initialization before use.** Provision and initialize before any consumer starts. Publish initialized storage only after successful completion. Persist initialization state and source identity; recover interrupted initialization without exposing partial contents or overwriting an already initialized volume.
+3. **Durable identity.** Store volume ownership, backing location, and lifecycle state in the database. Steps, loop iterations, retries, human feedback, and service restarts reuse the execution's existing volumes. Do not silently reset mutable contents on retry.
+4. **Runtime boundary.** Extend the runner/adapter contract with resolved mount descriptors and explicit capability validation. Controls must not contain Pi-specific mounting logic or Git-specific storage behavior.
+5. **Honest host behavior.** Ordinary host processes do not have private filesystem namespaces. A configured `/shared` target cannot automatically become a private literal host mount, and a read-only flag is not enforcement by itself. Define host directory bindings versus actual runtime mounts explicitly. Reject unsupported required guarantees before launch; never silently claim enforcement. Confirm the host binding interface during design rather than treating an environment variable or prompt as a filesystem mount.
+6. **Consistent integration.** Startup assignments, managed file tools, publication, collection, and operator artifact access must use the same resolved storage contract. Define how existing execution-file storage and configured outputs relate to volumes without adding built-in document filenames or introducing competing roots. Preserve required-output validation; do not infer publication by scanning arbitrary volume contents.
+7. **Lifecycle and retention.** Keep volumes available while executions are active or awaiting human input. Define retention and explicit cleanup through existing resource ownership/prune boundaries. Distinguish execution-owned storage from initializer sources and external project directories; cleanup must never delete those sources. Retain failed/cancelled execution data according to the documented policy.
+8. **Public inspection.** Expose volume identity, initialization state, and realized mount capabilities through public execution inspection. Do not require clients or evals to open private runtime directories to determine attachment state.
+
+### Concurrent access and security limits
+
+Shared storage does not establish document ownership, atomic publication, revision consistency, or review completion. Agents can observe partially written files unless the writing/publication contract prevents it. Coordinate this with CTRL-014; do not introduce an implicit locking protocol or claim volumes alone solve concurrent editing.
+
+Volume labels and access assignments do not sandbox host agents with unrestricted filesystem tools. Report requested versus enforced access precisely. Future container/sandbox implementations can realize stable target paths and access restrictions through the same adapter contract; a container runtime is not required by this issue.
+
+A ConfigMap-like immutable configuration resource is distinct from mutable volume storage and is not included in this issue.
+
+### Acceptance criteria
+
+- A factory declares a volume once and references it from multiple run steps without declaring its internal files.
+- Participants attached to the same volume observe the same stored content; separate executions cannot accidentally share backing storage.
+- Initialization completes before launch and is not repeated destructively during retries, loops, or controller recovery.
+- Invalid references, conflicting/overlapping targets, unsupported access guarantees, and initialization failures produce actionable pre-launch errors.
+- Adapter contract tests verify mount descriptor handling without depending on a particular agent implementation.
+- Tests cover restart recovery, concurrent consumers, interrupted initialization, permission failures, unsafe paths/symlinks, and cleanup boundaries.
+- Public inspection distinguishes configured targets, realized access, initialization failures, and unavailable capabilities.
+- Documentation includes an empty shared volume, initialized volume, multiple consumers with different access, host limitations, and retention behavior.
+- Existing artifact collection/publication remains correct, with a documented relationship to volumes; no sibling-directory search or filename guessing is introduced.
+
+### Related work and non-goals
+
+Coordinate with CTRL-014 (trusted artifact writes), CTRL-008 (recovery), CTRL-011 (preflight), and CTRL-006 (runtime adapter boundary). Review overlap with existing execution-file storage before adding a second storage authority.
+
+This issue does not implement volumes, change the Go factory, alter historical executions, introduce Git/worktree handling into Controls, or add persistent/network volume drivers. It records the agreed abstraction and the remaining interface decisions only.
