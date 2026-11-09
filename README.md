@@ -74,3 +74,8 @@ For per-agent provider, model, endpoint and credential selection, see [Pi packag
 For recovery after an interrupted daemon, use `factory stop --all`; it also stops verified managed dependency leftovers without deleting data. See [local resource recovery](docs/local-resources.md).
 
 Use `factory prune --dry-run` to inspect disposable cleanup, or `factory prune --all --dry-run` to include retained execution and database data. Stop resources first. Destructive `factory prune --all` requires confirmation; `--yes` supports automation. Source workspaces and worktrees are excluded.
+
+## Benchmark integration
+
+The planned full, autonomous SWE-bench Lite study requires the work in
+[bench_issues.md](bench_issues.md). These integrations are not implemented yet.
