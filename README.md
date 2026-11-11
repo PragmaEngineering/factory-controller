@@ -79,3 +79,5 @@ Use `factory prune --dry-run` to inspect disposable cleanup, or `factory prune -
 
 The planned full, autonomous SWE-bench Lite study requires the work in
 [bench_issues.md](bench_issues.md). These integrations are not implemented yet.
+
+For workflow-free communication and session supervision, see the [standalone runtime](docs/standalone-runtime.md).

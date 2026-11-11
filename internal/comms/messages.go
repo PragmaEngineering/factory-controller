@@ -122,6 +122,9 @@ func (s *Service) applyPayload(ctx context.Context, tx pgx.Tx, p Participant, m 
 	if kind != "publication" && kind != "step_result" && kind != "input_request" && kind != "input_response" && kind != "runtime_status" {
 		return nil, nil
 	}
+	if p.Kind == "peer" {
+		return nil, fault("not_authorized", "workflow control payloads are unavailable to standalone participants")
+	}
 	if !contains(m.Audience, identity(p.ExecutionID+"/controller")) {
 		return nil, fault("invalid_argument", "control payload must address the controller")
 	}
