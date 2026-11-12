@@ -16,7 +16,10 @@ import (
 
 type principalKey struct{}
 
-func (s *Service) MCPHandler() http.Handler {
+func (s *Service) MCPHandler() http.Handler { return s.MCPHandlerForHost("") }
+
+// MCPHandlerForHost accepts an explicitly advertised network authority.
+func (s *Service) MCPHandlerForHost(authority string) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: "factory-comms", Version: "0.1.0"}, nil)
 	for _, name := range []string{"create_thread", "add_participant", "remove_participants", "list_participants", "send_message", "read_messages", "wait_for_message", "close_thread"} {
 		name := name
@@ -40,7 +43,7 @@ func (s *Service) MCPHandler() http.Handler {
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(raw)}}, StructuredContent: json.RawMessage(raw)}, nil
 		})
 	}
-	handler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true})
+	handler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, DisableLocalhostProtection: authority != ""})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/mcp" {
 			http.NotFound(w, r)
@@ -52,7 +55,7 @@ func (s *Service) MCPHandler() http.Handler {
 			return
 		}
 		host, _, err := net.SplitHostPort(r.Host)
-		if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
+		if authority != "" && r.Host != authority || authority == "" && (err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback()) {
 			http.Error(w, "invalid host", http.StatusForbidden)
 			return
 		}

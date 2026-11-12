@@ -43,3 +43,21 @@ wire fields retain `execution_id`, containing a namespaced communication scope I
 this does not create a workflow execution.
 
 Comms is not a process sandbox. Do not expose the trusted Unix API remotely.
+
+## Network access
+
+Use `--listen 127.0.0.1:7331 --public-url https://controls.example.com
+--token-file /run/secrets/controls-token` with an HTTPS reverse proxy preserving
+Host. The origin binds only to loopback. The token file must contain a random
+credential of at least 32 characters. Management routes require that bearer
+credential; `/mcp` uses participant credentials and the advertised authority.
+Browser origins are rejected. Discovery is written to `ROOT/endpoint.json`.
+
+`POST /workspaces/{uuid}` accepts `{ "files": { "input.json": "..." } }` and
+returns an execution-host directory. Only invocation input/config/context/prompt
+and the embedded skill filenames are accepted; existing files are not overwritten.
+`POST /launch` accepts `{ "session": <existing session launch>,
+"environment_references": { "TARGET": "HOST_SOURCE" } }`, resolves environment
+references on this host, then uses the existing supervisor. Source packages and
+working directories belong to this machine. Neither endpoint requires a shared
+filesystem with Fabric. These are trusted host operations, not a sandbox.

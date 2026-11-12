@@ -73,7 +73,15 @@ func ServeLocal(ctx context.Context, root string, localDatabase bool) error {
 		manager = m
 		host := communication.HostHandler()
 		session := sessions.Handler(m)
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/workspaces/") {
+				workspaceHandler(root).ServeHTTP(w, r)
+				return
+			}
+			if r.URL.Path == "/launch" {
+				launchHandler(m).ServeHTTP(w, r)
+				return
+			}
 			if r.URL.Path == "/shutdown" {
 				if r.Method != http.MethodPost {
 					w.WriteHeader(http.StatusMethodNotAllowed)
@@ -91,6 +99,12 @@ func ServeLocal(ctx context.Context, root string, localDatabase bool) error {
 				return
 			}
 			session.ServeHTTP(w, r)
-		}), nil
+		})
+		stopNetwork, err := serveNetwork(ctx, root, communication, handler)
+		if err != nil {
+			return nil, err
+		}
+		go func() { <-ctx.Done(); stopNetwork() }()
+		return handler, nil
 	})
 }

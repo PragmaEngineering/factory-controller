@@ -43,6 +43,10 @@ func TestPackageEnvironmentExcludesWorkflowEngineCredentials(t *testing.T) {
 		"HATCHET_CLIENT_TOKEN=secret",
 		"HATCHET_CLIENT_HOST_PORT=localhost:1234",
 		"FACTORY_HATCHET_MODE=embedded",
+		"CONTROLS_TOKEN=host-secret",
+		"FABRIC_TOKEN=operator-secret",
+		"FABRIC_API_TOKEN_FILE=/private/token",
+		"FACTORY_RUNTIME_TOKEN_FILE=/private/host-token",
 		"OPENROUTER_API_KEY=agent-key",
 		"PATH=/usr/bin",
 	})

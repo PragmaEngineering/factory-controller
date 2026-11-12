@@ -78,8 +78,8 @@ func (s *Service) RetirePeer(ctx context.Context, id string) error {
 	return s.End(ctx, id)
 }
 
-// HostHandler belongs only on the private owner-only Unix socket. Never mount
-// provisioning on the public MCP listener: it can mint participant credentials.
+// HostHandler requires owner-only Unix access or authenticated host authority.
+// Never mount provisioning behind participant-only MCP authentication.
 func (s *Service) HostHandler() http.Handler {
 	mux := http.NewServeMux()
 	respond := func(w http.ResponseWriter, v any, err error) {
