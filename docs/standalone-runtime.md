@@ -21,6 +21,8 @@ session API described in session-supervisor.md plus these trusted host operation
 | GET | `/comms` | Current authenticated MCP endpoint URL and mode |
 | POST | `/comms/scopes` | `{ "name": "project" }` returns `{ "id": "scope:...", "name": "project" }` |
 | POST | `/comms/scopes/{scope}/participants` | `{ "key": "stable-instance-key", "name": "reviewer" }` returns `url`, `participant_id`, `token` |
+| GET | `/comms/participants/{id}` | Standalone identity, scope, and active state; no credential |
+| POST | `/comms/authenticate` | `{ "token": "..." }` returns an active standalone identity |
 | DELETE | `/comms/participants/{id}` | Retires a standalone identity |
 | POST | `/shutdown` | Stops the host and its supervised processes |
 

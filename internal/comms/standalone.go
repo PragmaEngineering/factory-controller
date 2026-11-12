@@ -126,6 +126,25 @@ func (s *Service) HostHandler() http.Handler {
 		c, err := s.RegisterPeer(r.Context(), r.PathValue("scope"), a.Key, a.Name)
 		respond(w, map[string]string{"url": c.URL, "participant_id": c.ParticipantID, "token": c.Token}, err)
 	})
+	mux.HandleFunc("POST /comms/authenticate", func(w http.ResponseWriter, r *http.Request) {
+		var a struct {
+			Token string `json:"token"`
+		}
+		if err := decode(w, r, &a); err != nil {
+			respond(w, nil, fault("invalid_argument", "invalid authentication request"))
+			return
+		}
+		p, err := s.Authenticate(r.Context(), a.Token)
+		if err == nil && (!p.Active || p.Kind != "peer") {
+			err = fault("not_authorized", "active standalone participant required")
+		}
+		respond(w, p, err)
+	})
+	mux.HandleFunc("GET /comms/participants/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var p Participant
+		err := s.DB.Pool.QueryRow(r.Context(), `SELECT id,execution_id,name,kind,active FROM factory.comms_participants WHERE id=$1 AND kind='peer'`, r.PathValue("id")).Scan(&p.ID, &p.ExecutionID, &p.Name, &p.Kind, &p.Active)
+		respond(w, p, err)
+	})
 	mux.HandleFunc("DELETE /comms/participants/{id}", func(w http.ResponseWriter, r *http.Request) {
 		err := s.RetirePeer(r.Context(), r.PathValue("id"))
 		respond(w, map[string]bool{"retired": err == nil}, err)

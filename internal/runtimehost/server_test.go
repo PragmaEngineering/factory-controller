@@ -62,4 +62,20 @@ func TestStandaloneHostWithoutHatchet(t *testing.T) {
 	require.NoError(t, json.NewDecoder(response2.Body).Decode(&credentials))
 	require.NotEmpty(t, credentials["token"])
 	require.NotEmpty(t, credentials["url"])
+	auth, err := httpClient.Post("http://local/comms/authenticate", "application/json", strings.NewReader(`{"token":"`+credentials["token"]+`"}`))
+	require.NoError(t, err)
+	defer auth.Body.Close()
+	require.Equal(t, http.StatusOK, auth.StatusCode)
+	var peer map[string]any
+	require.NoError(t, json.NewDecoder(auth.Body).Decode(&peer))
+	require.Equal(t, credentials["participant_id"], peer["id"])
+	inspect, err := httpClient.Get("http://local/comms/participants/" + credentials["participant_id"])
+	require.NoError(t, err)
+	defer inspect.Body.Close()
+	require.Equal(t, http.StatusOK, inspect.StatusCode)
+	denied, err := httpClient.Post("http://local/comms/authenticate", "application/json", strings.NewReader(`{"token":"invalid"}`))
+	require.NoError(t, err)
+	defer denied.Body.Close()
+	require.Equal(t, http.StatusBadRequest, denied.StatusCode)
+
 }
