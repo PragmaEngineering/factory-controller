@@ -14,6 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"controls/adapters"
+	"controls/adapters/pi"
+	"controls/execution"
 	"controls/internal/comms"
 	"controls/internal/sessions"
 	"github.com/google/uuid"
@@ -134,15 +137,19 @@ func workspaceHandler(root string) http.Handler {
 	})
 }
 
-func launchHandler(manager *sessions.Manager) http.Handler {
+func launchHandler(manager *sessions.Manager, root string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.WriteHeader(405)
 			return
 		}
 		var request struct {
-			Session    sessions.Launch   `json:"session"`
-			References map[string]string `json:"environment_references"`
+			Session       sessions.Launch            `json:"session"`
+			References    map[string]string          `json:"environment_references"`
+			Runtime       *execution.NativeRuntime   `json:"runtime,omitempty"`
+			PackagePath   string                     `json:"package_path,omitempty"`
+			Configuration map[string]json.RawMessage `json:"configuration,omitempty"`
+			AssignmentID  string                     `json:"assignment_id,omitempty"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&request) != nil {
 			http.Error(w, "invalid launch", 400)
@@ -152,7 +159,7 @@ func launchHandler(manager *sessions.Manager) http.Handler {
 			request.Session.Environment = map[string]string{}
 		}
 		for target, source := range request.References {
-			if strings.HasPrefix(target, "FABRIC_") || strings.HasPrefix(target, "FACTORY_") {
+			if strings.HasPrefix(target, "AGENT_MCP_") || strings.HasPrefix(target, "FABRIC_") || strings.HasPrefix(target, "FACTORY_") {
 				http.Error(w, "reserved environment target", 400)
 				return
 			}
@@ -162,6 +169,34 @@ func launchHandler(manager *sessions.Manager) http.Handler {
 				return
 			}
 			request.Session.Environment[target] = value
+		}
+		if request.Runtime != nil {
+			if len(request.Session.Command) == 0 {
+				http.Error(w, "native launch requires a command", 400)
+				return
+			}
+			if _, err := uuid.Parse(request.AssignmentID); err != nil {
+				http.Error(w, "native launch requires assignment id", 400)
+				return
+			}
+			settings, _ := json.Marshal(map[string]any{"overrides": request.Configuration, "args": request.Session.Command[1:]})
+			adapter, err := (adapters.Registry{"command": adapters.Command{}, "pi": pi.Adapter{}}).Select(request.Runtime, false)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			prepared, err := adapter.Prepare(r.Context(), adapters.Request{Package: execution.PackageSnapshot{Name: request.Session.Name, Source: request.PackagePath, Runtime: request.Runtime, Settings: settings}, Command: request.Session.Command, Project: request.Session.Directory, InvocationDir: filepath.Join(root, "native", request.AssignmentID)})
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			request.Session.Command = prepared.Command
+			request.Session.InputMode = prepared.InputMode
+			request.Session.Runtime = &prepared.Runtime
+			for name, value := range prepared.Environment {
+				request.Session.Environment[name] = value
+			}
+			request.Session.Environment["FACTORY_RUNTIME_NAME"] = prepared.Runtime.Name
 		}
 		result, err := manager.Launch(request.Session)
 		w.Header().Set("Content-Type", "application/json")

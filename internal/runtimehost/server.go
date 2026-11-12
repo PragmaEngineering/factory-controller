@@ -79,7 +79,7 @@ func ServeLocal(ctx context.Context, root string, localDatabase bool) error {
 				return
 			}
 			if r.URL.Path == "/launch" {
-				launchHandler(m).ServeHTTP(w, r)
+				launchHandler(m, root).ServeHTTP(w, r)
 				return
 			}
 			if r.URL.Path == "/shutdown" {

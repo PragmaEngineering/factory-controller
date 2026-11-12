@@ -21,7 +21,7 @@ func (s *Service) MCPHandler() http.Handler { return s.MCPHandlerForHost("") }
 // MCPHandlerForHost accepts an explicitly advertised network authority.
 func (s *Service) MCPHandlerForHost(authority string) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: "factory-comms", Version: "0.1.0"}, nil)
-	for _, name := range []string{"create_thread", "add_participant", "remove_participants", "list_participants", "send_message", "read_messages", "wait_for_message", "close_thread"} {
+	for _, name := range []string{"create_thread", "add_participant", "remove_participants", "list_participants", "send_message", "read_messages", "wait_for_message", "close_thread", "assignment_get", "assignment_status", "assignment_complete"} {
 		name := name
 		server.AddTool(&mcp.Tool{Name: name, Description: descriptions[name], InputSchema: schemas[name]}, func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			p, ok := ctx.Value(principalKey{}).(Participant)
@@ -112,6 +112,8 @@ func (s *Service) Listen(ctx context.Context) (func(), error) {
 }
 func (s *Service) Call(ctx context.Context, p Participant, name string, raw json.RawMessage) (any, error) {
 	switch name {
+	case "assignment_get", "assignment_status", "assignment_complete":
+		return s.assignmentCall(ctx, p, name, raw)
 	case "send_message":
 		var a Send
 		if err := json.Unmarshal(raw, &a); err != nil {
@@ -171,6 +173,9 @@ func (s *Service) Call(ctx context.Context, p Participant, name string, raw json
 const resultDataGuidance = `For step_result, normally omit artifacts: the host collects configured outputs. Additional artifacts must be objects, e.g. "artifacts":[{"name":"output.txt"}], never filename strings. The host supplies verified URIs and digests.`
 
 var descriptions = map[string]string{
+	"assignment_get":      "Read your authenticated assignment, input, configuration, instructions and contract. No ID is needed for the current assignment.",
+	"assignment_status":   "Inspect your assignment or report running/waiting. This does not complete work.",
+	"assignment_complete": "Submit one schema-validated output or error. Unchanged retries are idempotent. Accepted means durably recorded; workflow routing belongs to the owner.",
 	"create_thread":       "Create a conversation among known participants in your execution. Does not launch workers.",
 	"add_participant":     "Add an existing participant. Requires thread-owner or human/controller authority; does not start an agent.",
 	"remove_participants": "Remove memberships atomically. Requires thread-owner or human/controller authority; does not kill processes.",
@@ -188,6 +193,9 @@ func prop(kind string) map[string]string { return map[string]string{"type": kind
 func stringsProp() map[string]any        { return map[string]any{"type": "array", "items": prop("string")} }
 
 var schemas = map[string]any{
+	"assignment_get":      schema([]string{}, map[string]any{"id": prop("string")}),
+	"assignment_status":   schema([]string{}, map[string]any{"id": prop("string"), "state": map[string]any{"type": "string", "enum": []string{"running", "waiting"}}, "message": prop("string")}),
+	"assignment_complete": map[string]any{"type": "object", "properties": map[string]any{"id": prop("string"), "output": map[string]any{}, "error": map[string]any{"type": "string", "minLength": 1}}, "oneOf": []any{map[string]any{"required": []string{"output"}, "not": map[string]any{"required": []string{"error"}}}, map[string]any{"required": []string{"error"}, "not": map[string]any{"required": []string{"output"}}}}, "additionalProperties": false},
 	"create_thread":       schema([]string{"operation_id", "title", "context", "participants"}, map[string]any{"operation_id": prop("string"), "title": prop("string"), "context": map[string]any{"type": "array", "items": prop("object")}, "participants": stringsProp()}),
 	"list_participants":   schema([]string{"thread_id"}, map[string]any{"thread_id": prop("string")}),
 	"send_message":        schema([]string{"operation_id", "thread_id", "payload"}, map[string]any{"operation_id": prop("string"), "thread_id": prop("string"), "recipients": stringsProp(), "in_reply_to": prop("string"), "payload": payloadSchema()}),

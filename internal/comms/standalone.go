@@ -103,6 +103,20 @@ func (s *Service) HostHandler() http.Handler {
 		d.DisallowUnknownFields()
 		return d.Decode(v)
 	}
+	mux.HandleFunc("GET /comms/assignments/{owner}", func(w http.ResponseWriter, r *http.Request) {
+		var record assignmentRecord
+		err := s.DB.Get(r.Context(), "agent_assignment", r.PathValue("owner"), &record)
+		respond(w, record.Definition, err)
+	})
+	mux.HandleFunc("POST /comms/assignments", func(w http.ResponseWriter, r *http.Request) {
+		var a Assignment
+		if err := decode(w, r, &a); err != nil {
+			respond(w, nil, fault("invalid_argument", "invalid assignment"))
+			return
+		}
+		err := s.PutAssignment(r.Context(), a)
+		respond(w, map[string]bool{"accepted": err == nil}, err)
+	})
 	mux.HandleFunc("POST /comms/scopes", func(w http.ResponseWriter, r *http.Request) {
 		var a struct {
 			Name string `json:"name"`

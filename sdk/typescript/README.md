@@ -29,3 +29,15 @@ The [Pi adapter](../../adapters/pi/README.md) uses `connect`. Registry's task-re
 The [interoperability fixture](fixtures/mcp-client.mjs) exercises the official MCP client against the Go server without a model.
 
 Runtime configuration preparation is separate from this SDK. See [Adding an agent runtime](../../docs/runtime-adapters.md) for adapter selection, capabilities, version checks and the native launch boundary.
+
+## Shared assignment protocol
+
+With `protocol: mcp`, the host supplies only `AGENT_MCP_URL` and
+`AGENT_MCP_TOKEN` for the authenticated connection. Use
+`withAssignment(environment, async (assignment, complete, client) => { ... })`.
+Inputs, configuration, instructions and identity are fetched by `assignment_get`
+from Controls. Call `complete(output)` for a schema-validated durable result.
+Direct clients can use `assignment_status` and `assignment_complete` with an
+`error` instead of output. No controller discovery or workflow payload is required.
+The host interprets accepted output for Factory or Fabric internally.
+`withController` and the old file environment remain legacy-mode compatibility.

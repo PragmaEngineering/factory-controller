@@ -115,7 +115,7 @@ func TestDurableConversations(t *testing.T) {
 		peer := connect(t, ctx, b)
 		tools, err := client.ListTools(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, tools.Tools, 8)
+		require.Len(t, tools.Tools, 11)
 		raw := call(t, ctx, client, "list_participants", map[string]any{"thread_id": a.ThreadID})
 		require.Contains(t, string(raw), "controller")
 		if script := os.Getenv("FACTORY_MCP_INTEROP_SCRIPT"); script != "" {

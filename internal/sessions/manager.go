@@ -173,7 +173,7 @@ func packageEnvironment(source []string) []string {
 	result := make([]string, 0, len(source))
 	for _, entry := range source {
 		name, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "HATCHET_CLIENT_") || name == "FACTORY_HATCHET_MODE" || name == "DATABASE_URL" || name == "FACTORY_DATABASE_URL" || strings.HasPrefix(name, "FACTORY_RUNTIME_") || name == "CONTROLS_TOKEN" || name == "FABRIC_TOKEN" || name == "FABRIC_API_TOKEN_FILE" || name == "FABRIC_LISTEN" || name == "FABRIC_PUBLIC_URL" {
+		if strings.HasPrefix(name, "HATCHET_CLIENT_") || name == "FACTORY_HATCHET_MODE" || name == "DATABASE_URL" || name == "FACTORY_DATABASE_URL" || strings.HasPrefix(name, "FACTORY_RUNTIME_") || strings.HasPrefix(name, "AGENT_MCP_") || name == "CONTROLS_TOKEN" || name == "FABRIC_TOKEN" || name == "FABRIC_API_TOKEN_FILE" || name == "FABRIC_LISTEN" || name == "FABRIC_PUBLIC_URL" {
 			continue
 		}
 		result = append(result, entry)

@@ -7,7 +7,7 @@ await client.connect(new StreamableHTTPClientTransport(new URL(process.env.FACTO
   requestInit: { headers: { Authorization: `Bearer ${process.env.FACTORY_TEST_MCP_TOKEN}` } },
 }));
 try {
-  assert.equal((await client.listTools()).tools.length, 8);
+  assert.equal((await client.listTools()).tools.length, 11);
   const call = async (name, args) => {
     const result = await client.callTool({ name, arguments: args });
     assert(!result.isError, JSON.stringify(result.content));
