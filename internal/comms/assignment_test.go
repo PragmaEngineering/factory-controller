@@ -72,6 +72,16 @@ func TestSharedAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 	require.Equal(t, execution.Outcome("completed"), persisted.Outcome)
+	failedWork := work
+	failedWork.ExecutionID = uuid.NewString()
+	failed, err := service.Provision(ctx, failedWork)
+	require.NoError(t, err)
+	require.NoError(t, service.PutAssignment(ctx, comms.Assignment{Version: 1, ID: failed.ParticipantID, Owner: failed.ParticipantID, ThreadID: failed.ThreadID, Recipient: comms.ControllerID(failedWork.ExecutionID), Mode: "factory", OutputSchema: comms.FactoryAssignmentOutputSchema(failedWork)}))
+	failureClient := connect(t, ctx, failed)
+	call(t, ctx, failureClient, "assignment_complete", map[string]any{"error": "provider unavailable"})
+	_, err = service.Result(ctx, failed.ParticipantID)
+	require.ErrorContains(t, err, "provider unavailable")
+
 }
 
 func toolParams(name string, args any) *mcp.CallToolParams {

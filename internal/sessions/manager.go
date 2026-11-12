@@ -124,8 +124,10 @@ func (m *Manager) Launch(request Launch) (Session, error) {
 	id, token := uuid.NewString(), uuid.NewString()
 	command := exec.Command(request.Command[0], request.Command[1:]...)
 	command.Dir = directory
-	command.Env = append(append([]string(nil), m.environ...),
-		"FACTORY_SESSION_ID="+id, "FACTORY_SESSION_TOKEN="+token, "FACTORY_CONTROL_SOCKET="+m.socket)
+	command.Env = append([]string(nil), m.environ...)
+	if request.Environment["AGENT_MCP_URL"] == "" {
+		command.Env = append(command.Env, "FACTORY_SESSION_ID="+id, "FACTORY_SESSION_TOKEN="+token, "FACTORY_CONTROL_SOCKET="+m.socket)
+	}
 	for name, value := range request.Environment {
 		command.Env = append(command.Env, name+"="+value)
 	}
@@ -173,7 +175,7 @@ func packageEnvironment(source []string) []string {
 	result := make([]string, 0, len(source))
 	for _, entry := range source {
 		name, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "HATCHET_CLIENT_") || name == "FACTORY_HATCHET_MODE" || name == "DATABASE_URL" || name == "FACTORY_DATABASE_URL" || strings.HasPrefix(name, "FACTORY_RUNTIME_") || strings.HasPrefix(name, "AGENT_MCP_") || name == "CONTROLS_TOKEN" || name == "FABRIC_TOKEN" || name == "FABRIC_API_TOKEN_FILE" || name == "FABRIC_LISTEN" || name == "FABRIC_PUBLIC_URL" {
+		if strings.HasPrefix(name, "FACTORY_") || name == "AGENT_INSTRUCTIONS_FILE" || strings.HasPrefix(name, "HATCHET_CLIENT_") || name == "FACTORY_HATCHET_MODE" || name == "DATABASE_URL" || name == "FACTORY_DATABASE_URL" || strings.HasPrefix(name, "FACTORY_RUNTIME_") || strings.HasPrefix(name, "AGENT_MCP_") || name == "CONTROLS_TOKEN" || name == "FABRIC_TOKEN" || name == "FABRIC_API_TOKEN_FILE" || name == "FABRIC_LISTEN" || name == "FABRIC_PUBLIC_URL" {
 			continue
 		}
 		result = append(result, entry)

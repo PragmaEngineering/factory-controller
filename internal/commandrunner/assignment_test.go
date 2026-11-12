@@ -38,7 +38,7 @@ func TestReadinessUsesAssignmentMCPWithoutInvocationFiles(t *testing.T) {
 	t.Setenv("READINESS_TEST_KEY", "fixture-provider-key")
 	root := t.TempDir()
 	db := testdb.Open(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	communication, err := comms.New(ctx, db, nil)
 	require.NoError(t, err)

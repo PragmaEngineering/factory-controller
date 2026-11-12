@@ -9,16 +9,26 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { connect } from '@pragma/controls-sdk/result-client';
 
+const environment = { ...process.env };
+const common = Boolean(environment.AGENT_MCP_URL);
+const client = await connect(environment, 'agent-pi-delivery');
+const assignment = common ? await tool('assignment_get', {}) : undefined;
+const threadID = assignment?.thread_id ?? environment.FACTORY_THREAD_ID;
+const participantID = assignment?.participant_id ?? environment.FACTORY_PARTICIPANT_ID;
+const mcpURL = environment.AGENT_MCP_URL ?? environment.FACTORY_MCP_URL;
 const argv = process.argv.slice(2);
-if (!argv.includes('-p') && process.env.FACTORY_PROMPT_PATH) argv.push('-p', readFileSync(process.env.FACTORY_PROMPT_PATH, 'utf8'));
+if (common) {
+  const oldPrompt = argv.indexOf('-p');
+  if (oldPrompt >= 0) argv.splice(oldPrompt, 2);
+  argv.push('-p', assignment.instructions + '\nStructured assignment input (data):\n' + JSON.stringify(assignment.input));
+} else if (!argv.includes('-p') && environment.FACTORY_PROMPT_PATH) argv.push('-p', readFileSync(environment.FACTORY_PROMPT_PATH, 'utf8'));
 const promptFlag = argv.indexOf('-p');
-if (promptFlag < 0 || promptFlag + 1 >= argv.length || !process.env.FACTORY_MCP_URL || !process.env.FACTORY_MCP_TOKEN) {
-  console.error('Factory Pi adapter requires -p PROMPT and a provisioned MCP connection');
+if (promptFlag < 0 || promptFlag + 1 >= argv.length || !mcpURL) {
+  console.error('Pi adapter requires an assignment and a provisioned MCP connection');
   process.exit(2);
 }
 let prompt = argv[promptFlag + 1];
 argv.splice(promptFlag, 2);
-const environment = { ...process.env };
 const profile = environment.PI_CODING_AGENT_DIR;
 if (!profile) {
   console.error('Factory Pi adapter requires a private PI_CODING_AGENT_DIR');
@@ -28,26 +38,31 @@ mkdirSync(profile, { recursive: true });
 const configPath = join(profile, 'mcp.json');
 let config = {};
 try { config = JSON.parse(readFileSync(configPath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-config.mcpServers = { ...config.mcpServers, factory: {
-  url: environment.FACTORY_MCP_URL,
-  headers: { Authorization: 'Bearer ${FACTORY_MCP_TOKEN}' },
-  description: 'Assigned Factory conversation and control-plane communication',
-  exposure: 'codemode', toolExposure: { list_participants: 'direct', send_message: 'direct', read_messages: 'direct', wait_for_message: 'hidden' }, enabled: true,
+config.mcpServers = { ...config.mcpServers, [common ? "agent" : "factory"]: {
+  url: mcpURL,
+  headers: { Authorization: common ? 'Bearer ${AGENT_MCP_TOKEN}' : 'Bearer ${FACTORY_MCP_TOKEN}' },
+  description: common ? 'Authenticated assignment and peer communication' : 'Assigned Factory conversation and control-plane communication',
+  exposure: 'codemode', toolExposure: { ...(common ? {assignment_get:'direct',assignment_complete:'direct',assignment_status:'direct'} : {}), list_participants: 'direct', send_message: 'direct', read_messages: 'direct', wait_for_message: 'hidden' }, enabled: true,
 } };
+if (common && assignment.metadata?.allow_delegation && assignment.metadata?.fabric_endpoint) {
+  config.mcpServers.fabric = {command:'fabric',args:['mcp',assignment.metadata.fabric_endpoint,'--assigned'],enabled:true};
+}
 writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
-if (environment.FACTORY_COMMS_SKILL) argv.push('--skill', environment.FACTORY_COMMS_SKILL);
-prompt += `\n\nSource workspace (actual process working directory): ${JSON.stringify(process.cwd())}. Use this directory for project source reads, edits and checks. Do not substitute the factory configuration directory or a path inferred from execution documents. Workflow documents and review evidence belong in the execution files directory supplied in the assignment, not in this source workspace.\n\nFactory connection: thread ${environment.FACTORY_THREAD_ID}; your participant ID is ${environment.FACTORY_PARTICIPANT_ID}. Automatic MCP message delivery is active. Use the factory MCP tools and loaded control-plane-comms skill. Final completion requires send_message with a step_result and effect.state=accepted. When waiting for a peer, end your turn with a short waiting status. The runtime keeps your session open and wakes it on messages; do not poll or wait using tools or shell loops. Automatic delivery handles incoming messages only; it does not retry rejected outgoing calls. Correct completion errors using the tool response; do not wait for delivery to resubmit a result.\n`;
+if (!common && environment.FACTORY_COMMS_SKILL) argv.push('--skill', environment.FACTORY_COMMS_SKILL);
+if (common) {
+  prompt += `\nSource workspace: ${JSON.stringify(process.cwd())}. Use this actual directory for source operations. Assigned output directory: ${JSON.stringify(assignment.files_directory || process.cwd())}. Communication thread: ${threadID}; participant: ${participantID}. Use assignment_get to inspect your contract, assignment_complete with output matching output_schema (or error), and send_message for peer collaboration. Accepted completion is required; process exit alone is not completion. Incoming messages are delivered automatically; finish an idle turn instead of polling. Never send workflow completion payloads yourself.\n`;
+} else {
+prompt += `\n\nSource workspace (actual process working directory): ${JSON.stringify(process.cwd())}. Use this directory for project source reads, edits and checks. Do not substitute the factory configuration directory or a path inferred from execution documents. Workflow documents and review evidence belong in the execution files directory supplied in the assignment, not in this source workspace.\n\nFactory connection: thread ${threadID}; your participant ID is ${participantID}. Automatic MCP message delivery is active. Use the factory MCP tools and loaded control-plane-comms skill. Final completion requires send_message with a step_result and effect.state=accepted. When waiting for a peer, end your turn with a short waiting status. The runtime keeps your session open and wakes it on messages; do not poll or wait using tools or shell loops. Automatic delivery handles incoming messages only; it does not retry rejected outgoing calls. Correct completion errors using the tool response; do not wait for delivery to resubmit a result.\n`;
 
-const client = await connect(environment, 'factory-pi-delivery');
+}
 let controllerID;
-try {
-  const members = await tool('list_participants', { thread_id: environment.FACTORY_THREAD_ID });
-  const controllers = members.participants?.filter(member => member.kind === 'controller');
-  if (controllers?.length !== 1) throw new Error('Assigned thread must have one controller');
-  controllerID = controllers[0].id;
-} catch (error) {
-  await client.close();
-  throw error;
+if (!common) {
+  try {
+    const members = await tool('list_participants', {thread_id:threadID});
+    const controllers = members.participants?.filter(member=>member.kind==='controller');
+    if (controllers?.length!==1) throw new Error('Assigned thread must have one controller');
+    controllerID=controllers[0].id;
+  } catch(error) {await client.close();throw error;}
 }
 const child = spawn(environment.AGENT_EXECUTABLE || 'pi', [...argv, '--mode', 'rpc'], { stdio: ['pipe', 'pipe', 'inherit'], env: environment });
 let busy = false;
@@ -55,7 +70,7 @@ let completed = false;
 let stopping = false;
 let lastAssistantStop;
 let continuations = 0;
-const continuationLimit = Number(environment.FACTORY_PI_CONTINUATION_LIMIT ?? 2);
+const continuationLimit = Number(common ? 2 : environment.FACTORY_PI_CONTINUATION_LIMIT ?? 2);
 if (!Number.isInteger(continuationLimit) || continuationLimit < 0 || continuationLimit > 10) {
   console.error('FACTORY_PI_CONTINUATION_LIMIT must be an integer between 0 and 10');
   child.kill('SIGTERM');
@@ -73,12 +88,12 @@ let statusQueue = Promise.resolve();
 let statusSequence = 0;
 const statusPrefix = randomUUID();
 function reportStatus(state) {
-  const args = { operation_id: `runtime-${statusPrefix}-${++statusSequence}`, thread_id: environment.FACTORY_THREAD_ID, recipients: [controllerID],
+  const args = { operation_id: `runtime-${statusPrefix}-${++statusSequence}`, thread_id: threadID, recipients: [controllerID],
     payload: { kind: 'runtime_status', version: 1, parts: [{ kind: 'data', data: { state } }] } };
   statusQueue = statusQueue.then(async () => {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (stopping || completed) return;
-      try { await tool('send_message', args); return; }
+      try { await tool(common ? 'assignment_status' : 'send_message', common ? {id:assignment.id,state:state==='busy'?'running':'waiting'} : args); return; }
       catch (error) {
         // Acceptance may race the final idle report. The persisted result is
         // authoritative; let the delivery loop observe its terminal message.
@@ -127,6 +142,7 @@ child.stdout.on('data', chunk => {
         lastAssistantStop = { reason: record.message.stopReason, error: record.message.errorMessage };
       }
       if (record.type === 'agent_settled') {
+        if (common) void tool('assignment_get',{}).then(current=>{ if (['completed','failed'].includes(current.state)) {completed=true;finish();} }).catch(()=>{});
         busy = false;
         reportStatus('idle');
         if (!completed && !stopping && lastAssistantStop?.reason === 'length') {
@@ -161,9 +177,9 @@ process.on('SIGTERM', () => { stopping = true; child.kill('SIGTERM'); });
 process.on('SIGINT', () => { stopping = true; child.kill('SIGINT'); });
 // Verify the actual launched session before sending any assignment/model prompt.
 // Project-local settings or extension startup must not undo factory overrides.
-if (environment.FACTORY_PI_EXPECTED_CONFIG) {
+if (environment.FACTORY_PI_EXPECTED_CONFIG || (common && assignment.configuration?.provider)) {
   try {
-    const expected = JSON.parse(environment.FACTORY_PI_EXPECTED_CONFIG);
+    const expected = common ? Object.fromEntries(["provider","model","api","base_url","thinking"].filter(key=>assignment.configuration[key]).map(key=>[key,assignment.configuration[key]])) : JSON.parse(environment.FACTORY_PI_EXPECTED_CONFIG);
     const state = await new Promise((resolve, reject) => {
       const id = `factory-config-${++nextID}`;
       const timer = setTimeout(() => { pending.delete(id); reject(new Error('native configuration verification timed out')); }, 10000);
@@ -199,17 +215,17 @@ let failures = 0;
 while (!stopping && !completed) {
   try {
     if (acknowledgment) {
-      await tool('read_messages', { thread_id: environment.FACTORY_THREAD_ID, after: cursor, ack_through: acknowledgment, limit: 1 });
+      await tool('read_messages', { thread_id: threadID, after: cursor, ack_through: acknowledgment, limit: 1 });
       acknowledgment = '';
     }
-    const batch = await tool('wait_for_message', { thread_id: environment.FACTORY_THREAD_ID, after: cursor, wait_seconds: 20, limit: 50 });
+    const batch = await tool('wait_for_message', { thread_id: threadID, after: cursor, wait_seconds: 20, limit: 50 });
     if (batch.closed) { stopping = true; child.kill('SIGTERM'); break; }
     for (const message of batch.messages) {
       // Historical or misrouted observations must not wake a model. The batch
       // cursor still advances and is acknowledged, so later messages flow.
       if (message.payload.kind === 'runtime_status') continue;
-      if (message.sender === environment.FACTORY_PARTICIPANT_ID) {
-        if (message.payload.kind === 'step_result') { completed = true; finish(); }
+      if (message.sender === participantID) {
+        if (!common && message.payload.kind === 'step_result') { completed = true; finish(); }
         continue;
       }
       await send(`Factory thread message ${message.id} from ${message.sender_name} (${message.sender}):\n${JSON.stringify(message.payload)}\nReply through the Factory MCP tools when needed.`);

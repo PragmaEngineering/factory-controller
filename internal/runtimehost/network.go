@@ -194,9 +194,12 @@ func launchHandler(manager *sessions.Manager, root string) http.Handler {
 			request.Session.InputMode = prepared.InputMode
 			request.Session.Runtime = &prepared.Runtime
 			for name, value := range prepared.Environment {
+				if request.Session.Environment["AGENT_MCP_URL"] != "" && name == "FACTORY_PI_EXPECTED_CONFIG" {
+					continue
+				}
 				request.Session.Environment[name] = value
 			}
-			request.Session.Environment["FACTORY_RUNTIME_NAME"] = prepared.Runtime.Name
+			request.Session.Environment["AGENT_RUNTIME_NAME"] = prepared.Runtime.Name
 		}
 		result, err := manager.Launch(request.Session)
 		w.Header().Set("Content-Type", "application/json")

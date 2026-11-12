@@ -1,5 +1,13 @@
 # Runtime adapters
 
+New packages can declare `protocol: mcp`. They receive only a scoped connection
+bootstrap (`AGENT_MCP_URL`, `AGENT_MCP_TOKEN`); input/configuration/instructions
+come from `assignment_get`, status uses `assignment_status`, and completion uses
+`assignment_complete`. This is shared with Fabric. Native preparation still follows
+the YAML `runtime` and provider overrides. The `FACTORY_*` assignment variables,
+files and direct `step_result` guidance below describe legacy compatibility.
+
+
 Controls owns these runner integrations. Each adapter translates a runner’s native interface into the public execution and communication contract; the Go controller does not import Pi-specific code.
 
 - [Pi](pi/README.md): native RPC session adapter.

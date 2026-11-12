@@ -225,7 +225,14 @@ func (s *Service) Recover(ctx context.Context, id string) error {
 	if rejection != "" {
 		reason = "Your step_result was rejected: " + rejection + ". Correct the handoff; do not repeat completed implementation or verification."
 	}
-	body := fmt.Sprintf("Controller completion recovery %d/%d. %s\n%s", attempts+1, policy.Limit, reason, CompletionExample(threadID(work), outcomes))
+	guidance := CompletionExample(threadID(work), outcomes)
+	var packageSettings struct {
+		Protocol string `json:"protocol"`
+	}
+	if json.Unmarshal(work.Package.Settings, &packageSettings) == nil && packageSettings.Protocol == "mcp" {
+		guidance = fmt.Sprintf("Use assignment_complete with output containing outcome (one of %v), summary, and applicable data/publication_id. Do not repeat completed work. Correct rejected output against assignment_get and retry unchanged only for uncertain transport.", outcomes)
+	}
+	body := fmt.Sprintf("Controller completion recovery %d/%d. %s\n%s", attempts+1, policy.Limit, reason, guidance)
 	controller := Participant{ID: identity(p.ExecutionID + "/controller"), Name: "controller", Kind: "controller", ExecutionID: p.ExecutionID}
 	m := Message{ID: identity(fmt.Sprintf("%s/completion-reminder/%d", id, attempts+1)), ThreadID: threadID(work), Sender: controller.ID, SenderName: controller.Name, Audience: []string{id}, At: now, Payload: Payload{Kind: "message", Version: 1, Parts: a2a.ContentParts{a2a.TextPart{Text: body}}}}
 	if err = tx.QueryRow(ctx, `UPDATE factory.comms_threads SET next_sequence=next_sequence+1 WHERE id=$1 AND NOT closed RETURNING next_sequence`, m.ThreadID).Scan(&m.Sequence); err != nil {

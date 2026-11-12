@@ -110,7 +110,9 @@ func (s *Service) HostHandler() http.Handler {
 	})
 	mux.HandleFunc("POST /comms/assignments", func(w http.ResponseWriter, r *http.Request) {
 		var a Assignment
-		if err := decode(w, r, &a); err != nil {
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&a); err != nil {
 			respond(w, nil, fault("invalid_argument", "invalid assignment"))
 			return
 		}

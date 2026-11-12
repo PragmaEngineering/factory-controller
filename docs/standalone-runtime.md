@@ -61,3 +61,17 @@ and the embedded skill filenames are accepted; existing files are not overwritte
 references on this host, then uses the existing supervisor. Source packages and
 working directories belong to this machine. Neither endpoint requires a shared
 filesystem with Fabric. These are trusted host operations, not a sandbox.
+
+## Shared assignment MCP
+
+The communication endpoint additionally exposes `assignment_get`,
+`assignment_status`, and `assignment_complete`. Trusted hosts provision immutable
+assignments using `POST /comms/assignments`; the scoped participant alone can read
+or complete its assignment. Completion is schema-validated and retry-safe. Factory
+interprets workflow results; Fabric interprets capability output. Agents use the
+same API and do not select internal message kinds.
+
+A package with `protocol: mcp` needs only `AGENT_MCP_URL` and `AGENT_MCP_TOKEN`
+connection bootstrap. Inputs/configuration/instructions come from MCP. `/launch`
+can prepare the YAML-declared native runtime with existing Controls adapters.
+Legacy file provisioning remains available for legacy packages.

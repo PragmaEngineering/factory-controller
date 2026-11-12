@@ -2,8 +2,10 @@ package comms
 
 import (
 	"context"
+	"controls/execution"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -30,6 +32,7 @@ type assignmentRecord struct {
 	Definition Assignment      `json:"definition"`
 	State      string          `json:"state"`
 	Message    string          `json:"message,omitempty"`
+	Sequence   int             `json:"sequence,omitempty"`
 	Completion json.RawMessage `json:"completion,omitempty"`
 	Receipt    *Receipt        `json:"receipt,omitempty"`
 }
@@ -76,15 +79,18 @@ func (s *Service) PutAssignment(ctx context.Context, a Assignment) error {
 	if err != nil {
 		return err
 	}
-	var existing assignmentRecord
-	if err = s.DB.Get(ctx, "agent_assignment", a.Owner, &existing); err != nil {
+	current, err := json.Marshal(a)
+	if err != nil {
 		return err
 	}
-	old, _ := json.Marshal(existing.Definition)
-	current, _ := json.Marshal(a)
-	if string(old) != string(current) {
+	var same bool
+	if err = s.DB.Pool.QueryRow(ctx, `SELECT content->'definition' = $2::jsonb FROM factory.records WHERE kind='agent_assignment' AND id=$1`, a.Owner, current).Scan(&same); err != nil {
+		return err
+	}
+	if !same {
 		return fault("operation_conflict", "participant already owns a different immutable assignment")
 	}
+
 	return nil
 }
 func assignmentView(record assignmentRecord) map[string]any {
@@ -156,6 +162,16 @@ func (s *Service) assignmentCall(ctx context.Context, p Participant, name string
 			if args.State != "running" && args.State != "waiting" {
 				return nil, fault("invalid_argument", "state must be running or waiting")
 			}
+			if a.Mode == "factory" && args.State != record.State {
+				state := "idle"
+				if args.State == "running" {
+					state = "busy"
+				}
+				record.Sequence++
+				if _, err = s.Send(ctx, p, Send{OperationID: fmt.Sprintf("assignment:%s:status:%d", a.ID, record.Sequence), ThreadID: a.ThreadID, Recipients: []string{a.Recipient}, Payload: Structured("runtime_status", map[string]any{"state": state})}); err != nil {
+					return nil, err
+				}
+			}
 			record.State = args.State
 			record.Message = args.Message
 		}
@@ -190,11 +206,13 @@ func (s *Service) assignmentCall(ctx context.Context, p Participant, name string
 		if a.Mode == "factory" {
 			var result map[string]any
 			if args.Error != "" {
-				result = map[string]any{"outcome": "failed", "summary": args.Error}
+				payload = Structured("assignment.failed", map[string]any{"assignment_id": a.ID, "error": args.Error})
 			} else if json.Unmarshal(args.Output, &result) != nil {
 				return nil, fault("invalid_argument", "Factory assignment output must be a result object")
 			}
-			payload = Structured("step_result", result)
+			if args.Error == "" {
+				payload = Structured("step_result", result)
+			}
 		} else {
 			completion["invocation_id"] = a.ID
 			payload = Structured("fabric.result", completion)
@@ -203,7 +221,7 @@ func (s *Service) assignmentCall(ctx context.Context, p Participant, name string
 		if e != nil {
 			return nil, e
 		}
-		if a.Mode == "factory" && (receipt.Effect == nil || receipt.Effect.State != "accepted") {
+		if a.Mode == "factory" && args.Error == "" && (receipt.Effect == nil || receipt.Effect.State != "accepted") {
 			return nil, fault("temporarily_unavailable", "assignment result has not been accepted")
 		}
 		record.Completion = completed
@@ -231,3 +249,18 @@ func (s *Service) assignmentCall(ctx context.Context, p Participant, name string
 
 // ControllerID identifies the existing workflow controller without agent-side discovery.
 func ControllerID(executionID string) string { return identity(executionID + "/controller") }
+
+// Factory's result contract remains explicit, even when delivered through common MCP.
+func FactoryAssignmentOutputSchema(work execution.Work) json.RawMessage {
+	raw, _ := json.Marshal(controlDataSchemas["step_result"])
+	var schema map[string]any
+	_ = json.Unmarshal(raw, &schema)
+	outcomes := []string{}
+	for outcome := range work.Step.Routes {
+		outcomes = append(outcomes, string(outcome))
+	}
+	sort.Strings(outcomes)
+	schema["properties"].(map[string]any)["outcome"] = map[string]any{"type": "string", "enum": outcomes}
+	raw, _ = json.Marshal(schema)
+	return raw
+}

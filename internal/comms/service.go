@@ -208,6 +208,15 @@ func (s *Service) Result(ctx context.Context, id string) (*execution.StepResult,
 		return nil, err
 	}
 	if len(raw) == 0 {
+		var record assignmentRecord
+		if e := s.DB.Get(ctx, "agent_assignment", id, &record); e == nil && record.State == "failed" {
+			var failure struct {
+				Error string `json:"error"`
+			}
+			if json.Unmarshal(record.Completion, &failure) == nil {
+				return nil, fmt.Errorf("assignment failed: %s", failure.Error)
+			}
+		}
 		return nil, nil
 	}
 	var result execution.StepResult
