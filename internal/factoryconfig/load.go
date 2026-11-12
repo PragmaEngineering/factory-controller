@@ -50,6 +50,7 @@ type Human struct {
 
 // Package selects an independently runnable bundle. Overrides is interpreted by its selected runtime or bundle.
 type Package struct {
+	Protocol   string                     `json:"protocol,omitempty"`
 	Runtime    *execution.NativeRuntime   `json:"runtime,omitempty"`
 	Overrides  map[string]json.RawMessage `json:"overrides,omitempty"`
 	Name       string                     `json:"name"`
@@ -204,11 +205,15 @@ func load(path, executionID string) (Resolved, error) {
 		}
 		pkg.Path = root
 		registered[pkg.Name] = pkg
+		if pkg.Protocol != "" && pkg.Protocol != "legacy" && pkg.Protocol != "mcp" {
+			return Resolved{}, fmt.Errorf("package %q protocol must be legacy or mcp", pkg.Name)
+		}
 		settings, _ := json.Marshal(struct {
+			Protocol   string                     `json:"protocol,omitempty"`
 			Overrides  map[string]json.RawMessage `json:"overrides,omitempty"`
 			Entrypoint string                     `json:"entrypoint"`
 			Args       []string                   `json:"args,omitempty"`
-		}{pkg.Overrides, pkg.Entrypoint, pkg.Args})
+		}{pkg.Protocol, pkg.Overrides, pkg.Entrypoint, pkg.Args})
 		var excluded []string
 		if relative, err := filepath.Rel(root, factoryDir); err == nil && filepath.IsLocal(relative) {
 			if relative == "." {
