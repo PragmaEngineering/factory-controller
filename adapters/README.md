@@ -29,7 +29,7 @@ Each agent owns its native Pi defaults, provider/model, tools, and domain skills
 
 ## Pi under Factory
 
-Factory supplies `FACTORY_MCP_URL`, a scoped `FACTORY_MCP_TOKEN`, `FACTORY_THREAD_ID`, `FACTORY_PARTICIPANT_ID`, and the runtime-provided `FACTORY_COMMS_SKILL` directory. Do not configure these manually or put credentials in model prompts.
+In legacy mode, Factory supplies `FACTORY_MCP_URL`, a scoped `FACTORY_MCP_TOKEN`, `FACTORY_THREAD_ID`, `FACTORY_PARTICIPANT_ID`, and the runtime-provided `FACTORY_COMMS_SKILL` directory. Do not configure these manually or put credentials in model prompts.
 
 For explicitly selected managed Pi runtimes, the Registry entrypoint reuses the prepared profile and invokes the [Pi adapter](pi/pi-rpc-session.mjs). The adapter:
 
@@ -42,7 +42,7 @@ For explicitly selected managed Pi runtimes, the Registry entrypoint reuses the 
 - Continues a response truncated with `stopReason: length` at most twice per invocation. Each continuation is visible in captured output and asks for concrete incremental work. `FACTORY_PI_CONTINUATION_LIMIT` (0–10, default 2) can change that bound in the service environment before startup.
 - Terminates visibly when continuation is exhausted or a model turn ends with `error` or `aborted`. It does not disguise those states as idle waiting. An accepted final result ends the invocation; a normal idle turn does not.
 
-The agent completes its invocation by sending a `step_result` payload to the controller through `send_message`. Its data contains the allowed outcome and factual summary. Factory validates and collects applicable files according to `outputs`/`outputs_on`. There is no completion file or shell result helper.
+A legacy agent completes its invocation by sending a `step_result` payload to the controller through `send_message`. Its data contains the allowed outcome and factual summary. Factory validates and collects applicable files according to `outputs`/`outputs_on`. There is no completion file or shell result helper.
 
 An accepted member result does not complete a concurrent loop. The engine waits for every member and reduces configured routes: failure takes priority, then a route back to the loop entry, then the common exit. Human approval remains a separate configured decision.
 

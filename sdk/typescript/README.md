@@ -12,32 +12,55 @@ npm install /path/to/controls/sdk/typescript
 
 The Registry already declares this dependency using a sibling Controls checkout. No package registry publication is required.
 
-## API
+## Shared assignment API
 
-```typescript
-import { connect, withController } from '@pragma/controls-sdk/result-client';
+```javascript
+import { withAssignment } from '@pragma/controls-sdk/result-client';
+
+await withAssignment(process.env, async (assignment, complete, client) => {
+  const output = await implement(assignment.input, assignment.configuration);
+  await complete(output);
+});
 ```
 
-`connect(environment, name?)` returns a connected official MCP `Client`, using `FACTORY_MCP_URL` and `FACTORY_MCP_TOKEN`. The caller owns closing the connection and can call the conversation tools through `client.callTool(...)`.
+`implement` represents your program's behavior. Declare `protocol: mcp` in
+`factory.yaml` or `fabric.yaml`. The host supplies `AGENT_MCP_URL` and
+`AGENT_MCP_TOKEN` for the existing scoped participant connection. Do not manually
+configure assignment IDs, threads, input files, or controller identities.
 
-`withController(environment, callback)` connects, discovers the assigned thread's controller, and passes a `submit(result)` function to the callback. It always closes the connection afterward. Submission sends a `step_result` addressed to the controller and rejects unless its effect is `accepted`. Its operation ID is stable for the invocation's participant; repeated submissions must retain the same result.
+`withAssignment(environment, callback)` fetches `assignment_get`, reports running,
+and passes the assignment, `complete(output)`, and the connected official MCP
+client to the callback. It closes the connection afterward. The assignment contains
+input, configuration, instructions, identity/thread, directories, and output schema.
+Configuration contains secret references rather than credential values. Provider
+credentials remain in the execution-host environment referenced by YAML.
 
-The environment must include `FACTORY_THREAD_ID` and `FACTORY_PARTICIPANT_ID` in addition to the connection variables. Controls provisions these for managed invocations. Never include the token in prompts or result data.
+`complete(output)` validates against the assigned output schema on the server and
+resolves only for `state: accepted`. Unchanged retries recover the same receipt;
+changed completion is rejected. Direct clients can use `assignment_status` for
+running/waiting and `assignment_complete` with a factual `error` instead of output.
+Factory maps output to its existing result validation and records errors as runtime
+failures. Fabric records capability results/errors. Agents do not select internal
+message kinds or workflow routes.
 
-The [Pi adapter](../../adapters/pi/README.md) uses `connect`. Registry's task-readiness classifier uses `withController`. The [communication contract](../../docs/communications.md) defines the tool payloads and controller behavior.
+`connect(environment, name?)` returns an official MCP `Client`. It prefers the
+`AGENT_MCP_*` bootstrap, with `FACTORY_MCP_*` supported for legacy callers. The
+caller owns closing this client. Existing conversation tools remain available for
+peer messages and bounded waiting. Keep connection credentials out of output.
 
-The [interoperability fixture](fixtures/mcp-client.mjs) exercises the official MCP client against the Go server without a model.
+Registry readiness uses `withAssignment`; the Pi adapter uses `connect` and the
+same assignment operations. Native runtime/profile preparation remains separate;
+see [runtime adapters](../../docs/runtime-adapters.md).
 
-Runtime configuration preparation is separate from this SDK. See [Adding an agent runtime](../../docs/runtime-adapters.md) for adapter selection, capabilities, version checks and the native launch boundary.
+## Legacy compatibility
 
-## Shared assignment protocol
+`withController(environment, callback)` retains controller discovery and direct
+`step_result` submission for `protocol: legacy`. It requires the legacy Factory
+connection, thread and participant variables. `withAssignment` also adapts legacy
+Factory input/configuration files for old callers. New implementations should use
+the shared assignment API above.
 
-With `protocol: mcp`, the host supplies only `AGENT_MCP_URL` and
-`AGENT_MCP_TOKEN` for the authenticated connection. Use
-`withAssignment(environment, async (assignment, complete, client) => { ... })`.
-Inputs, configuration, instructions and identity are fetched by `assignment_get`
-from Controls. Call `complete(output)` for a schema-validated durable result.
-Direct clients can use `assignment_status` and `assignment_complete` with an
-`error` instead of output. No controller discovery or workflow payload is required.
-The host interprets accepted output for Factory or Fabric internally.
-`withController` and the old file environment remain legacy-mode compatibility.
+The [interoperability fixture](fixtures/mcp-client.mjs) tests the official MCP
+client against Controls without a model. See [communications](../../docs/communications.md)
+for message contracts and [package bindings](../../docs/packages.md) for Factory
+input/result interpretation.

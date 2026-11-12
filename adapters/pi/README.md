@@ -1,5 +1,26 @@
 # Pi adapter
 
+## MCP assignment mode
+
+A package declaring `protocol: mcp` and its pinned Pi `runtime` uses Controls'
+existing native preparation and YAML provider overrides. The adapter connects
+using the scoped `AGENT_MCP_URL`/`AGENT_MCP_TOKEN` bootstrap and fetches its
+assignment through MCP. It exposes `assignment_get`, `assignment_status`, and
+`assignment_complete` directly to Pi, alongside peer communication tools. It does
+not require Factory input/prompt/context files or controller discovery. Native
+configuration verification reads the assignment's configuration.
+
+Incoming messages still wake an idle native session. Completion is observed through
+the shared assignment state. When permitted, Fabric delegation is configured as
+`fabric mcp ENDPOINT --assigned`, retaining the worker's identity. Native profile
+files and executable selection are produced by the declared runtime adapter; they
+are not operator-maintained assignment configuration.
+
+The legacy Factory connection/prompt variables discussed below remain supported
+for legacy packages. Standalone Registry launchers keep normal Pi behavior.
+
+## Runtime behavior
+
 Connects Pi's native RPC sessions to Controls. It starts Pi, delivers thread messages and operator input, translates Pi usage/tool events, and keeps the session alive between turns. It uses the [TypeScript SDK](../../sdk/typescript/README.md) for its authenticated MCP connection.
 
 Requires Node.js 22+ and an installed Pi executable. Install dependencies with `npm ci` from the Controls root; the Go binary installer does not install these dependencies. Run adapter checks with `npm test --workspace @pragma/adapter-pi` there. Tests use a fake Pi process and a loopback MCP server, without model calls.

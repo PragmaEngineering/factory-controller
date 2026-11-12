@@ -15,6 +15,7 @@ A runnable package can be a coding agent, a script or a decision-model classifie
 ```yaml
 packages:
   - name: readiness
+    protocol: mcp
     path: ../registry/classifiers/task-readiness
     entrypoint: start.sh
     overrides:
@@ -22,6 +23,7 @@ packages:
       model: typesafe/jev-1.14
       api_key_env: OPENROUTER_API_KEY
   - name: architect
+    protocol: mcp
     path: ../registry/agents/architect
     entrypoint: start.sh
     runtime:
@@ -82,7 +84,10 @@ These supplement the existing execution/step IDs and scoped MCP connection. They
 
 ## Publishing named outputs
 
-A package sends the existing MCP `step_result` payload, with an optional `data` map:
+In MCP mode, a package submits this result object as `output` through
+`assignment_complete`. The owner applies Factory result validation and routing.
+Legacy mode sends the object in a `step_result` payload through `send_message`.
+The optional `data` map preserves named structured outputs:
 
 ```json
 {
