@@ -7,8 +7,10 @@ FACTORY_DATABASE_URL=postgres://USER:PASSWORD@127.0.0.1:5432/factory \
   bin/factory-runtime --root /absolute/private/runtime-directory
 ```
 
-Supply a PostgreSQL database; this mode does not start Hatchet or provision a
-PostgreSQL installation. Controls applies its normal migrations. Use a dedicated
+Alternatively, run `bin/factory-runtime --root DIRECTORY --local-database` to
+manage a private PostgreSQL installation and persistent data under that directory.
+The first run may download PostgreSQL. Logs are in `DIRECTORY/postgres.log`.
+This mode does not start Hatchet. Controls applies its normal migrations. Use a dedicated
 runtime directory and database for independent operation. SIGINT/SIGTERM stops the
 host and its supervised processes. Session records and conversations are retained;
 live sessions become interrupted on restart, not transparently resumed.

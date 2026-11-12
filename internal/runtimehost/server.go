@@ -1,5 +1,5 @@
 // Package runtimehost serves communication and process supervision without a
-// workflow scheduler. PostgreSQL is supplied explicitly by the host.
+// workflow scheduler. PostgreSQL may be supplied or privately managed.
 package runtimehost
 
 import (
@@ -18,7 +18,12 @@ import (
 )
 
 func Serve(ctx context.Context, root string) error {
-	if os.Getenv("FACTORY_DATABASE_URL") == "" {
+	return ServeLocal(ctx, root, false)
+}
+
+// ServeLocal optionally owns a private PostgreSQL instance for this runtime.
+func ServeLocal(ctx context.Context, root string, localDatabase bool) error {
+	if !localDatabase && os.Getenv("FACTORY_DATABASE_URL") == "" {
 		return errors.New("standalone runtime requires FACTORY_DATABASE_URL")
 	}
 	if err := os.MkdirAll(root, 0700); err != nil {
@@ -35,6 +40,13 @@ func Serve(ctx context.Context, root string) error {
 	defer syscall.Flock(int(lease.Fd()), syscall.LOCK_UN)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	if localDatabase {
+		stopDB, err := startDatabase(root)
+		if err != nil {
+			return err
+		}
+		defer stopDB()
+	}
 	db, err := state.Open(ctx)
 	if err != nil {
 		return err
