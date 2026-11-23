@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+// Pi 1.x shares one adapter. Workflows may impose a narrower runtime constraint.
+// Prereleases and other major versions are outside this compatibility policy.
+const supportedVersions = ">=1.0.0 <2.0.0"
+
 type Adapter struct{}
 
 func (Adapter) Name() string { return "pi" }
@@ -54,7 +58,7 @@ func (Adapter) Prepare(ctx context.Context, request adapters.Request) (prepared 
 	if spec.Executable != "" {
 		executable = spec.Executable
 	}
-	executable, version, err := adapters.ExecutableVersion(ctx, executable, spec.Version, "=1.0.3")
+	executable, version, err := adapters.ExecutableVersion(ctx, executable, spec.Version, supportedVersions)
 	if err != nil {
 		return prepared, err
 	}

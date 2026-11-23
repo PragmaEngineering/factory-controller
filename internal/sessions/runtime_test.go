@@ -12,9 +12,11 @@ func TestRetryRequiresTheSameNativeIdentity(t *testing.T) {
 	previous := []Session{{StepID: "visit", Try: 1, Runtime: &original}}
 	require.NoError(t, validateRetryRuntime(previous, request))
 	changed := original
-	changed.Version = "1.0.4"
-	previous[0].Runtime = &changed
-	require.ErrorContains(t, validateRetryRuntime(previous, request), "runtime identity changed")
+	for _, version := range []string{"1.0.4", "1.1.0"} {
+		changed.Version = version
+		previous[0].Runtime = &changed
+		require.ErrorContains(t, validateRetryRuntime(previous, request), "runtime identity changed")
+	}
 	changed = original
 	changed.AdapterVersion = "1"
 	require.Error(t, validateRetryRuntime(previous, request))

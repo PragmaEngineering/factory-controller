@@ -10,7 +10,7 @@ path: ../registry/agents/coder_golang
 entrypoint: start.sh
 runtime:
   name: pi
-  version: =1.0.3
+  version: ">=1.0.0 <2.0.0"
 overrides:
   provider: corporate
   model: coding-model
@@ -47,7 +47,7 @@ Unknown fields, nulls, empty strings and invalid types fail validation. No arbit
 ## Resolution and precedence
 
 1. Validate the finite override schema before persisting a submitted execution.
-2. Probe the exact installed executable. Initially **Pi 1.0.3 only** is supported, intersected with the requested `runtime.version`; no installation or upgrade is performed.
+2. Probe the exact installed executable. The supported range is stable **Pi 1.x (`>=1.0.0 <2.0.0`)**, intersected with the requested `runtime.version`. Other majors and prereleases are rejected; no installation or upgrade is performed.
 3. Copy bundled `pi/*.json` into a new private invocation profile (`0700` directory, `0600` files). Without overrides, retain native bytes and behavior. With overrides, change only supplied fields and conflicting selected-provider/model settings; preserve unrelated native configuration.
 4. A credential override replaces the selected provider's copied stored auth entry and known authentication headers. The published bundle and user's global profile remain unchanged.
 5. Check resolved selection and credential availability through **offline native RPC** with resource discovery disabled. No model prompt or provider request is sent. This verifies local resolution, not remote credential validity, network access or actual provider capabilities.
@@ -72,7 +72,7 @@ Errors identify fields and codes such as `invalid_config`, `missing_credentials`
 To check an installed supported binary without model calls:
 
 ```sh
-FACTORY_TEST_INSTALLED_PI=/absolute/path/to/pi go test ./adapters/pi -run TestInstalledPi103 -v -count=1
+FACTORY_TEST_INSTALLED_PI=/absolute/path/to/pi go test ./adapters/pi -run TestInstalledPi1x -v -count=1
 ```
 
 The smoke test supplies a local test endpoint and asserts zero provider requests. It does not use your production API key. Supporting another Pi version requires native configuration/RPC compatibility evidence and this smoke test, not a wider version range alone. For another runner, implement its own translation behind the [adapter preparation port](../adapters/adapter.go), optional side-effect-free `Validator`, native bridge and conformance tests; do not add runner branches to the controller or workflow engine.

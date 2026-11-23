@@ -28,7 +28,7 @@ packages:
     entrypoint: start.sh
     runtime:
       name: pi
-      version: =1.0.3
+      version: ">=1.0.0 <2.0.0"
 ```
 
 This is a configuration fragment. Paths resolve from `factory.yaml`, and every package starts with that file's directory as its working directory. `entrypoint` selects a file in the package; optional `args` are literal arguments except `{prompt}`, which substitutes the generated assignment. The package directory digest, `overrides` settings and optional `runtime` requirement participate in the pinned execution configuration. Secret values belong in the service environment, never `overrides`.
@@ -112,4 +112,4 @@ See [task readiness](../../registry/classifiers/task-readiness/README.md) and th
 
 ## Native runtime selection
 
-A package can declare `runtime: {"name":"pi","version":"=1.0.3"}`; optional `executable` selects the installed native program. Omitting it selects an opaque command package with no advertised agent capabilities. Concurrent peer stages require an explicitly capable adapter. The command host and native runtime are recorded separately. Pi preserves bundled defaults and supports explicit [per-package overrides](pi-overrides.md). Other packages continue to interpret their own `overrides` JSON. See [Adding an agent runtime](runtime-adapters.md) for configuration, lifecycle ownership, capabilities and conformance tests.
+A package can declare `runtime: {"name":"pi","version":">=1.0.0 <2.0.0"}`; optional `executable` selects the installed native program. Omitting it selects an opaque command package with no advertised agent capabilities. Concurrent peer stages require an explicitly capable adapter. The command host and native runtime are recorded separately. Pi preserves bundled defaults and supports explicit [per-package overrides](pi-overrides.md). Other packages continue to interpret their own `overrides` JSON. See [Adding an agent runtime](runtime-adapters.md) for configuration, lifecycle ownership, capabilities and conformance tests.

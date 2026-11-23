@@ -41,7 +41,7 @@ packages:
     entrypoint: start.sh
     runtime:
       name: pi
-      version: =1.0.3
+      version: ">=1.0.0 <2.0.0"
       executable: /opt/tools/pi
     args:
       - --workspace
@@ -94,7 +94,7 @@ For Pi, a selected managed profile is reused by the Registry entrypoint. Standal
 
 ## Compatibility and credentials
 
-Use an explicit supported range in the native adapter and intersect it with the package's requested range. The Pi preparer accepts the currently tested `1.0.3` release; extending that range requires compatibility evidence. Pi below 1 and Pi 2 are unsupported. Version detection uses `--version`, accepts a bare semantic version, and times out after five seconds. The probe receives only PATH, home and temporary-directory environment settings, not service provider/engine credentials. Runners with banners or a different version interface need a native parser/probe, not changes to the generic scheduler.
+Use an explicit supported range in the native adapter and intersect it with the package's requested range. The Pi preparer accepts stable Pi 1.x (`>=1.0.0 <2.0.0`) through one adapter. This is the current major-version compatibility policy, not a claim that every minor/patch release has been tested. Packages can narrow it, including an exact pin for an evaluation. Pi 0.x, Pi 2.x and prereleases are rejected even if the package asks for a broader range. Sessions record the exact detected version, and retries of a step visit reject patch or minor version drift; keep that executable available or start a new execution. Compatibility admission does not install or retain runtime binaries. Version detection uses `--version`, accepts a bare semantic version, and times out after five seconds. The probe receives only PATH, home and temporary-directory environment settings, not service provider/engine credentials. Runners with banners or a different version interface need a native parser/probe, not changes to the generic scheduler.
 
 Resolve the executable once and pass the exact absolute path into the launch path. Do not probe one `pi` and subsequently launch another via a different `PATH`. Version requirements are pinned; installed executable bytes are not vendored or frozen. New attempts probe again and record their actual runtime identity. A retry of the same step visit rejects changes to native name/version or adapter revision; use a new execution. No automatic upgrade occurs. Historical identity remains available to compare attempts.
 
@@ -123,7 +123,7 @@ Capabilities are adapter implementation promises, not user-provided grants. Cont
 | Adapter | Operator input | Peer messages / idle delivery | Native lifecycle | Usage / tool events | Version support |
 |---|---|---|---|---|---|
 | Opaque `command` | Not advertised | Not advertised; concurrent loop rejected | Unavailable | Not advertised; a package may emit the generic protocol itself | No native version probe |
-| Pi | Native RPC steering | Implemented | Observed; controller-only routing enforced | Translated from native events; missing price remains unknown | 1.0.3; incompatible requirements rejected |
+| Pi | Native RPC steering | Implemented | Observed; controller-only routing enforced | Translated from native events; missing price remains unknown | Stable Pi 1.x; package constraints intersected; 2.x/prereleases rejected |
 | Independent fixture (tests only) | Not implemented | MCP wait loop | Unavailable | Unavailable; no fabricated model counters | 1.0.0 |
 
 Do not claim concurrent support just because two processes can launch. Both must remain available for peer messages and supply independently accepted results. A runner that only supports batch completion needs an appropriate capability declaration and must not be used for an unsupported concurrent stage.

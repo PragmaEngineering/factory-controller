@@ -196,16 +196,17 @@ func TestPreflightErrorDoesNotExposeNativeSecrets(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "recognizable-secret-value")
 }
-func TestInstalledPi103ResolvesOverridesWithoutProviderRequests(t *testing.T) {
+func TestInstalledPi1xResolvesOverridesWithoutProviderRequests(t *testing.T) {
 	executable := os.Getenv("FACTORY_TEST_INSTALLED_PI")
 	if executable == "" {
-		t.Skip("set FACTORY_TEST_INSTALLED_PI for the installed Pi 1.0.3 smoke check")
+		t.Skip("set FACTORY_TEST_INSTALLED_PI for the installed Pi 1.x smoke check")
 	}
 	var calls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
 	defer server.Close()
 	request := nativeFixture(t)
 	request.Package.Runtime.Executable = executable
+	request.Package.Runtime.Version = supportedVersions
 	request.Package.Settings = json.RawMessage(strings.Replace(string(customOverrides()), "https://corporate.example/v1", server.URL+"/v1", 1))
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()

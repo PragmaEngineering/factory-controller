@@ -18,7 +18,7 @@ packages:
     entrypoint: start.sh
     runtime:
       name: pi
-      version: =1.0.3
+      version: ">=1.0.0 <2.0.0"
     args:
       - '{prompt}'
   - name: reviewer
@@ -26,7 +26,7 @@ packages:
     entrypoint: start.sh
     runtime:
       name: pi
-      version: =1.0.3
+      version: ">=1.0.0 <2.0.0"
     args:
       - '{prompt}'
 workflow:
@@ -132,6 +132,6 @@ The root example includes optional Registry Git hooks and assumes its placeholde
 
 ## Native agent runtimes
 
-Package/agent registrations accept optional `runtime` with `name` (adapter selection), `version` (semantic-version constraint) and `executable` (installed native program). For example: `"runtime": {"name":"pi","version":"=1.0.3"}`. Executable paths containing a separator resolve from the factory file; bare names resolve on the service PATH. The requirement is pinned; the detected version and resolved executable are recorded per launched session. Native runtime identity is separate from `runner: "command"`, the local host mechanism. Unknown adapters, incompatible versions and unsupported concurrent capabilities fail before package launch. Absent `runtime` does not infer Pi from package files. See [Adding an agent runtime](runtime-adapters.md) for supported capabilities, validation phases and integration instructions.
+Package/agent registrations accept optional `runtime` with `name` (adapter selection), `version` (semantic-version constraint) and `executable` (installed native program). For example: `"runtime": {"name":"pi","version":">=1.0.0 <2.0.0"}`. Executable paths containing a separator resolve from the factory file; bare names resolve on the service PATH. The requirement is pinned; the detected version and resolved executable are recorded per launched session. Native runtime identity is separate from `runner: "command"`, the local host mechanism. Unknown adapters, incompatible versions and unsupported concurrent capabilities fail before package launch. Absent `runtime` does not infer Pi from package files. See [Adding an agent runtime](runtime-adapters.md) for supported capabilities, validation phases and integration instructions.
 
 Use package-level `overrides` for supported runtime/package settings; unknown fields are rejected. Each runtime/package owns its schema. See [Pi override configuration](pi-overrides.md) and [generic package inputs](packages.md).
