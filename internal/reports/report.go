@@ -16,7 +16,7 @@ import (
 	"controls/internal/telemetry"
 )
 
-const Version = 1
+const Version = 2
 
 //go:embed assets/*
 var assets embed.FS
@@ -59,12 +59,14 @@ type Assessment struct {
 	At      time.Time `json:"at"`
 }
 type Agent struct {
-	Name      string `json:"name"`
-	SessionID string `json:"session_id"`
-	StepID    string `json:"step_id"`
-	Runner    string `json:"runner"`
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
+	Resources   telemetry.Summary     `json:"resources,omitzero"`
+	Diagnostics telemetry.Diagnostics `json:"diagnostics,omitzero"`
+	Name        string                `json:"name"`
+	SessionID   string                `json:"session_id"`
+	StepID      string                `json:"step_id"`
+	Runner      string                `json:"runner"`
+	Provider    string                `json:"provider,omitempty"`
+	Model       string                `json:"model,omitempty"`
 }
 type Hook struct {
 	Name       string     `json:"name"`

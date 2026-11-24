@@ -63,3 +63,8 @@ td {
 }
 
 
+
+.session-diagnostics { margin: 24px 0; border-top: 1px solid var(--line); padding-top: 16px; }
+.tool-failure { margin: 14px 0; border: 1px solid var(--line); padding: 14px; }
+.tool-failure summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; font-size: 12px; }

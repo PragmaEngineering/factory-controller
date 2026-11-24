@@ -114,6 +114,7 @@ func (s *Store) Report(ctx context.Context, q reports.Query) (reports.Document, 
 		return reports.Document{}, err
 	}
 	byExecution := map[string][]sessions.Session{}
+	diagnostics := map[string]telemetry.Diagnostics{}
 	for rows.Next() {
 		var raw, usage []byte
 		if err := rows.Scan(&raw, &usage); err != nil {
@@ -133,6 +134,7 @@ func (s *Store) Report(ctx context.Context, q reports.Query) (reports.Document, 
 				return reports.Document{}, err
 			}
 			session.Resources = p.Summary
+			diagnostics[session.ID] = p.Diagnostics
 		}
 		byExecution[session.ExecutionID] = append(byExecution[session.ExecutionID], session)
 	}
@@ -145,6 +147,10 @@ func (s *Store) Report(ctx context.Context, q reports.Query) (reports.Document, 
 		view := reportExecution(record, byExecution[record.ID])
 		if record.ID == selectedID {
 			copy := view
+			copy.Agents = append([]reports.Agent(nil), view.Agents...)
+			for i := range copy.Agents {
+				copy.Agents[i].Diagnostics = diagnostics[copy.Agents[i].SessionID]
+			}
 			snapshot.Selected = &copy
 		}
 		if !record.CreatedAt.Before(from) && record.CreatedAt.Before(to) {
@@ -197,7 +203,7 @@ func reportExecution(record Execution, agents []sessions.Session) reports.Execut
 			continue
 		}
 		view.Resources.Include(agent.Resources)
-		view.Agents = append(view.Agents, reports.Agent{Name: agent.Name, SessionID: agent.ID, StepID: agent.StepID, Runner: agent.Runner, Provider: agent.Resources.Provider, Model: agent.Resources.Model})
+		view.Agents = append(view.Agents, reports.Agent{Name: agent.Name, SessionID: agent.ID, StepID: agent.StepID, Runner: agent.Runner, Provider: agent.Resources.Provider, Model: agent.Resources.Model, Resources: agent.Resources})
 	}
 	for _, request := range record.Requests {
 		if request.AnsweredAt != nil {

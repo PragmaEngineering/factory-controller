@@ -37,6 +37,7 @@ if(!config.mcpServers.agent || process.env.FACTORY_THREAD_ID || process.env.FACT
 const client=new Client({name:'native',version:'1'});await client.connect(new StreamableHTTPClientTransport(new URL(process.env.AGENT_MCP_URL),{requestInit:{headers:{Authorization:'Bearer '+process.env.AGENT_MCP_TOKEN}}}));
 for await(const line of createInterface({input:process.stdin})){
  const request=JSON.parse(line);
+ if(request.type==='get_state') {console.log(JSON.stringify({type:'response',id:request.id,success:true,data:{model:{provider:'fixture',id:'fixture',contextWindow:32000}}}));continue;}
  if(!request.message.includes('assignment_complete'))process.exit(8);
  console.log(JSON.stringify({type:'response',id:request.id,success:true}));
  const result=await client.callTool({name:'assignment_complete',arguments:{output:{outcome:'completed',summary:'done'}}});

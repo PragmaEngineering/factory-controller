@@ -26,6 +26,8 @@ A saved report cannot be combined with new factory, execution, or time selectors
 |---|---|
 | Summary | Selected execution, controller state, reported usage and wall time. |
 | Measurements | Stage visits, step visits, per-attempt timings/failures, sessions and reported models. |
+| Context and turns | Per-session response token categories, native model context limits, footprint/utilization and peaks, stop reasons, native turn and compaction boundaries. |
+| Failed tool calls | Every captured failure, attributed to session/step visit and native turn when known, with call ID, tool, command, arguments, start/end/duration, exit code and returned diagnostics. |
 | History | All selected execution states, token chart, completion count and metric sample sizes. |
 | Assessments | Agent results and operator decisions, attributed to their source. |
 | Quality measures | Definitions and availability of automated checks. No fabricated scores. |
@@ -66,3 +68,13 @@ The `get_report` tool accepts `factory`, `execution_id`, `from`, `to`, `report_i
 ```
 
 Use `{"report_id":"REPORT-ID","format":"html"}` to retrieve a saved report, or `{"format":"template"}` to fetch the embedded template source. CLI and MCP call the same control-plane report API. This operator server is distinct from the participant-scoped agent messaging MCP server; workflow agents are not granted cross-execution report access.
+
+## Monitor reports and diagnostic evidence
+
+Monitor's **Reports** tab generates the same immutable report as CLI/MCP for the selected execution. It includes factory history and offers sandboxed preview plus HTML/JSON downloads. Refresh is explicit and creates a new saved snapshot; normal status polling never regenerates reports.
+
+Report version 2 includes per-session diagnostics for the selected execution (history retains aggregates) from persisted runner-neutral telemetry. Pi probes its actual native model metadata before the initial prompt, without a provider request. Context footprint is the completed response's input + cache read + cache write + output, matching Pi's usage footprint; utilization divides this by the recorded model capacity. It is neither cumulative session spend nor a live estimate including subsequent tool results. Peak utilization uses only responses with known capacities. A changed/unknown model has unknown capacity until corresponding native metadata is observed. No model capacity is inferred from its name. Native turn start/end and compaction start/end events (including older auto-compaction aliases) are recorded separately from model responses; absent boundaries remain unavailable. Compactions include reason, abort/error state, pre-compaction tokens and explicitly labeled estimated post-compaction tokens when supplied.
+
+Failed calls retain their correlated start record and returned text/structured details, including the exit code when the runtime supplies it. Each command is limited to 2,048 characters; arguments, returned text and structured error details each to 16,384 characters, with explicit truncation flags. Every failure record is retained; there is no last-N failure limit. Missing start events leave start/duration unknown. These timestamps are host ingestion times, not native clock timestamps. Common credential keys are redacted in structured Pi arguments/details, but free-form commands, text and assessments can contain sensitive material and require the same handling as session output. Binary/image payloads are excluded. Retained raw session output may provide additional evidence for truncated calls.
+
+Historical telemetry that saved only counts cannot reconstruct call diagnostics, per-response context, or native turns. Older immutable report IDs remain unchanged. Generate a new report to see available newly captured evidence; absent evidence is never inferred from prose.

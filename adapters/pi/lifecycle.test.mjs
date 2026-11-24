@@ -53,6 +53,7 @@ await client.connect(new StreamableHTTPClientTransport(new URL(process.env.FACTO
 let turns=0;
 for await(const line of createInterface({input:process.stdin})) {
  const request=JSON.parse(line);
+ if(request.type==='get_state') {console.log(JSON.stringify({type:'response',id:request.id,success:true,data:{}}));continue;}
  console.log(JSON.stringify({type:'response',command:'prompt',id:request.id,success:true}));
  console.log(JSON.stringify({type:'fixture_prompt',text:request.message}));
  const first=++turns===1;

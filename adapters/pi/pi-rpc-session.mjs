@@ -3,12 +3,13 @@
 // workflow routing; this adapter only configures the connection and moves input.
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { telemetry } from './telemetry.mjs';
+import { createTelemetry } from './telemetry.mjs';
 import { createInterface } from 'node:readline';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { connect } from '@pragma/controls-sdk/result-client';
 
+const telemetry = createTelemetry();
 const environment = { ...process.env };
 const common = Boolean(environment.AGENT_MCP_URL);
 const client = await connect(environment, 'agent-pi-delivery');
@@ -177,9 +178,9 @@ process.on('SIGTERM', () => { stopping = true; child.kill('SIGTERM'); });
 process.on('SIGINT', () => { stopping = true; child.kill('SIGINT'); });
 // Verify the actual launched session before sending any assignment/model prompt.
 // Project-local settings or extension startup must not undo factory overrides.
-if (environment.FACTORY_PI_EXPECTED_CONFIG || (common && assignment.configuration?.provider)) {
+{
   try {
-    const expected = common ? Object.fromEntries(["provider","model","api","base_url","thinking"].filter(key=>assignment.configuration[key]).map(key=>[key,assignment.configuration[key]])) : JSON.parse(environment.FACTORY_PI_EXPECTED_CONFIG);
+    const expected = common ? Object.fromEntries(["provider","model","api","base_url","thinking"].filter(key=>assignment.configuration?.[key]).map(key=>[key,assignment.configuration?.[key]])) : JSON.parse(environment.FACTORY_PI_EXPECTED_CONFIG || '{}');
     const state = await new Promise((resolve, reject) => {
       const id = `factory-config-${++nextID}`;
       const timer = setTimeout(() => { pending.delete(id); reject(new Error('native configuration verification timed out')); }, 10000);

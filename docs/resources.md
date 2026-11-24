@@ -71,3 +71,7 @@ Write newline-delimited JSON records to supervised stdout. Native output can coe
 This is runtime telemetry, separate from agent messages and completion. Agents still use MCP for control-plane communication. Telemetry cannot complete a step. Framing state, counters, output, and stream entries commit together in PostgreSQL; partial lines survive supervisor restart. No provider prices or runner-specific parsing live in the control plane.
 
 Execution documents are separate from project source. Configure `factory_dir` (default `.factory`) and use explicit frozen references to pass execution paths to commands. See [execution files and variables](execution-files.md).
+
+### Diagnostic telemetry
+
+The v1 event envelope also accepts optional `context_window` (positive native model capacity), `stop_reason`, `error`, and `turn` on usage, plus `tool_name`, `arguments` (serialized text), `output`, `error`, `exit_code`, `turn`, and `truncated` on tool events. `tool_id` correlates starts and finishes within a session. `turn_started`, `turn_finished`, `compaction_started`, and `compaction_finished` capture native boundaries; producers must not derive turn counts from usage samples. Host ingestion times are used consistently. Diagnostic projections survive framing/restarts and sequence replay, and are included in [execution reports](reports.md). Missing fields remain unknown. Emit no credential values; reports are operator evidence, not a secrets store.

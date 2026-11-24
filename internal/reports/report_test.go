@@ -57,3 +57,29 @@ func TestStatisticsRetainFailuresAndMissingCoverage(t *testing.T) {
 	require.Equal(t, 1, stats.CompletedTimeN)
 	require.Equal(t, 20.0, *stats.MeanCompletedSeconds)
 }
+
+func TestDetailedReportIncludesContextBoundariesAndEscapedFailureEvidence(t *testing.T) {
+	at := time.Now().UTC()
+	code := 2
+	agent := Agent{Name: "builder", SessionID: "session", StepID: "step-visit", Diagnostics: telemetry.Diagnostics{
+		Responses:  []telemetry.Response{{Number: 1, At: at, Tokens: telemetry.Tokens{Input: 100, Output: 50}, ContextWindow: 1000, StopReason: "toolUse"}},
+		Boundaries: []telemetry.Boundary{{Kind: "turn_started", At: at}, {Kind: "turn_finished", At: at}},
+		Failures:   []telemetry.Failure{{ToolID: "failed-call", Tool: telemetry.Tool{Name: "bash", Command: "go test", Arguments: `{"command":"go test"}`, StartedAt: at}, FinishedAt: at, Output: "<script>bad()</script>", ExitCode: &code, Truncated: true}},
+	}}
+	doc, err := Build(Snapshot{Selected: &Execution{Agents: []Agent{agent}}})
+	require.NoError(t, err)
+	for _, want := range []string{"15.0%", "step-visit", "failed-call", "turn_finished", "Evidence truncated", "&lt;script&gt;", "toolUse"} {
+		require.Contains(t, doc.HTML, want)
+	}
+	require.NotContains(t, doc.HTML, "<script>")
+	require.NotContains(t, doc.HTML, "ZgotmplZ")
+}
+
+func TestLegacyAgentSnapshotDoesNotAcquireEmptyDiagnosticFields(t *testing.T) {
+	raw := `{"name":"legacy","session_id":"s","step_id":"step","runner":"command"}`
+	var agent Agent
+	require.NoError(t, json.Unmarshal([]byte(raw), &agent))
+	encoded, err := json.Marshal(agent)
+	require.NoError(t, err)
+	require.JSONEq(t, raw, string(encoded))
+}

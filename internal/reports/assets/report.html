@@ -32,6 +32,7 @@
 <div class="nav-heading">CONTENTS</div>
 <a href="#summary">01 Execution summary</a>
 <a href="#measurements">02 Recorded measurements</a>
+<a href="#diagnostics">Context, turns &amp; failed calls</a>
 <a href="#history">03 Factory history</a>
 <a href="#assessments">04 Assessments</a>
 <a href="#quality">05 Quality measures</a>
@@ -172,6 +173,30 @@
 </table>
 </div>
 <p class="subtle">Step durations can overlap. Sessions without structured usage have unknown token consumption. Historical attempts or stage timestamps are not reconstructed from prose.</p>{{else}}<p>Select an execution for detailed lifecycle data.</p>{{end}}</section>
+<section id="diagnostics">
+<h2>Context windows, turns and failed tool calls</h2>
+<p class="subtle">Context footprint is input + cache read + cache write + output for each completed response; it is not cumulative spend or a live window measurement. Capacity is native model metadata, not an estimate. Missing capacity is unknown. Native turn boundaries and completed model responses are separate measurements.</p>
+{{with .Selected}}{{range .Agents}}
+<article class="session-diagnostics">
+<h3>{{.Name}} · session <code>{{.SessionID}}</code></h3>
+<p>Step visit: <code>{{.StepID}}</code> · Runner: {{.Runner}} · Completed model responses: {{.Resources.Samples}} · Recorded tool failures: {{.Resources.ToolFailures}} · Detailed failure records: {{len .Diagnostics.Failures}}</p>
+<p>Recorded native turns started / finished: {{.Diagnostics.TurnsStarted}} / {{.Diagnostics.TurnsFinished}} · Compactions started / finished: {{.Diagnostics.CompactionsStarted}} / {{.Diagnostics.CompactionsFinished}} · Peak recorded response footprint: {{.Diagnostics.PeakFootprint}} tokens · Peak observed utilization: {{.Diagnostics.PeakOccupancy}}</p>
+<h4>Response-by-response context and token accounting</h4>
+<div class="table-wrap"><table><thead><tr><th>Response / native turn / recorded UTC</th><th>Provider / model</th><th>Input</th><th>Cache read / write</th><th>Output</th><th>Footprint / capacity</th><th>Utilization</th><th>Stop reason / error</th></tr></thead><tbody>
+{{range .Diagnostics.Responses}}<tr><td>{{.Number}} / {{if .Turn}}{{.Turn}}{{else}}unknown{{end}}<br>{{time .At}}</td><td>{{.Provider}} / {{.Model}}</td><td>{{.Tokens.Input}}</td><td>{{.Tokens.CacheRead}} / {{.Tokens.CacheWrite}}</td><td>{{.Tokens.Output}}</td><td>{{.Tokens.Total}} / {{if .ContextWindow}}{{.ContextWindow}}{{else}}unknown{{end}}</td><td>{{.Occupancy}}</td><td>{{.StopReason}}{{if .Error}}<pre>{{.Error}}</pre>{{end}}</td></tr>{{else}}<tr><td colspan="8">Per-response evidence unavailable. Older telemetry retains aggregate usage only.</td></tr>{{end}}
+</tbody></table></div>
+<h4>Native turn and compaction timeline</h4>
+<div class="table-wrap"><table><thead><tr><th>Native turn / boundary</th><th>Recorded UTC</th><th>Diagnostic</th></tr></thead><tbody>{{range .Diagnostics.Boundaries}}<tr><td>{{if .Turn}}{{.Turn}} / {{end}}{{.Kind}}</td><td>{{time .At}}</td><td>{{.Reason}}{{if .Aborted}} · aborted{{end}}{{if .TokensBefore}} · before: {{.TokensBefore}} tokens{{end}}{{if .EstimatedTokensAfter}} · estimated after: {{.EstimatedTokensAfter}} tokens{{end}}{{if .Error}}<pre>{{.Error}}</pre>{{end}}</td></tr>{{else}}<tr><td colspan="3">Native boundaries unavailable; response counts are not substituted for turns.</td></tr>{{end}}</tbody></table></div>
+<h4>Failed tool calls</h4>
+{{range .Diagnostics.Failures}}<details class="tool-failure" open><summary>{{.Name}} · call {{.ToolID}} · {{time .FinishedAt}}</summary>
+<dl class="metadata"><div><dt>Started UTC</dt><dd>{{if .StartedAt.IsZero}}unknown{{else}}{{time .StartedAt}}{{end}}</dd></div><div><dt>Finished UTC</dt><dd>{{time .FinishedAt}}</dd></div><div><dt>Exit code</dt><dd>{{if .ExitCode}}{{.ExitCode}}{{else}}unavailable{{end}}</dd></div></dl>
+<p>Native turn: {{if .Turn}}{{.Turn}}{{else}}unknown{{end}} · Duration: {{.Duration}}</p>
+<h5>Command</h5><pre>{{.Command}}</pre><h5>Arguments</h5><pre>{{.Arguments}}</pre><h5>Returned text</h5><pre>{{.Output}}</pre><h5>Error / structured details</h5><pre>{{.Error}}</pre>
+{{if .Truncated}}<p class="note">Evidence truncated at capture limits; consult retained session output for further detail.</p>{{end}}
+</details>{{else}}<p>No detailed failed calls recorded. Compare the recorded failure count above: historical counts cannot reconstruct missing diagnostics.</p>{{end}}
+</article>
+{{else}}<p>No agent sessions recorded.</p>{{end}}{{else}}<p>Select an execution for diagnostics.</p>{{end}}
+</section>
 <section id="history">
 <h2>03 Factory history</h2>
 <div class="metrics">

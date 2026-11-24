@@ -57,7 +57,7 @@ func TestPersistedLifecycleReportAndClient(t *testing.T) {
 	require.Equal(t, result.Summary, after.Steps[0].Result.Summary)
 	sessionID := "report-session"
 	require.NoError(t, db.Create(ctx, "session", sessionID, sessions.Session{ID: sessionID, ExecutionID: "report-run", StepID: after.Steps[0].ID, Name: "builder", Runner: "any-runner"}))
-	require.NoError(t, db.Create(ctx, "telemetry", sessionID, telemetry.Projection{Summary: telemetry.Summary{Samples: 2, Tokens: telemetry.Tokens{Input: 10, CacheRead: 20, Output: 5}, Provider: "custom", Model: "custom-model"}}))
+	require.NoError(t, db.Create(ctx, "telemetry", sessionID, telemetry.Projection{Diagnostics: telemetry.Diagnostics{Responses: []telemetry.Response{{Number: 1, At: time.Now().UTC(), ContextWindow: 32000}}, Failures: []telemetry.Failure{{ToolID: "failed-tool", Output: "diagnostic"}}}, Summary: telemetry.Summary{Samples: 2, Tokens: telemetry.Tokens{Input: 10, CacheRead: 20, Output: 5}, Provider: "custom", Model: "custom-model"}}))
 	handler := Handler(&Controller{Store: store})
 	// Use a new Store/HTTP client to prove reports need no runner/process state.
 	reopened, err := Open(db)
@@ -68,6 +68,9 @@ func TestPersistedLifecycleReportAndClient(t *testing.T) {
 	require.Len(t, document.Snapshot.Selected.Stages, 1)
 	require.Len(t, document.Snapshot.Selected.Assessments, 1)
 	require.Equal(t, "custom-model", document.Snapshot.Selected.Agents[0].Model)
+	require.Len(t, document.Snapshot.Selected.Agents[0].Diagnostics.Responses, 1)
+	require.Empty(t, document.Snapshot.History[0].Agents[0].Diagnostics.Responses)
+	require.Equal(t, "diagnostic", document.Snapshot.Selected.Agents[0].Diagnostics.Failures[0].Output)
 	require.NotContains(t, document.HTML, "ZgotmplZ")
 	// Later accounting must not mutate a previously saved report snapshot.
 	require.NoError(t, db.Change(ctx, "telemetry", sessionID, func([]byte) ([]byte, error) {

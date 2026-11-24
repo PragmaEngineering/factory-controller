@@ -51,3 +51,39 @@ func TestProjectionRejectsBadAndOversizedLinesThenRecovers(t *testing.T) {
 	require.EqualValues(t, 1, total.UnreportedSessions)
 	require.Equal(t, "unknown", total.Cost())
 }
+
+func TestDiagnosticsPersistAcrossRestartAndRetainEveryFailure(t *testing.T) {
+	at := time.Now().UTC()
+	var p Projection
+	appendEvent := func(e Event, at time.Time) {
+		e.Type = Protocol
+		raw, err := json.Marshal(e)
+		require.NoError(t, err)
+		p.Append(append(raw, '\n'), at)
+	}
+	appendEvent(Event{Sequence: 1, Kind: "turn_started"}, at)
+	appendEvent(Event{Sequence: 2, Kind: "usage", Tokens: Tokens{Input: 100, CacheRead: 200, Output: 50}, ContextWindow: 1000, Provider: "p", Model: "m", StopReason: "toolUse"}, at)
+	appendEvent(Event{Sequence: 3, Kind: "tool_started", ToolID: "call", ToolName: "bash", Command: "go test", Arguments: `{"command":"go test"}`}, at)
+	raw, err := json.Marshal(p)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &p))
+	code := 2
+	end := at.Add(time.Second)
+	appendEvent(Event{Sequence: 4, Kind: "tool_finished", ToolID: "call", Failed: true, Output: "failure", ExitCode: &code}, end)
+	appendEvent(Event{Sequence: 4, Kind: "tool_finished", ToolID: "call", Failed: true}, end)
+	appendEvent(Event{Sequence: 5, Kind: "tool_finished", ToolID: "orphan", Failed: true, Output: strings.Repeat("x", 20000)}, end)
+	appendEvent(Event{Sequence: 6, Kind: "turn_finished"}, end)
+	require.Len(t, p.Diagnostics.Failures, 2)
+	failure := p.Diagnostics.Failures[0]
+	require.Equal(t, "bash", failure.Name)
+	require.Equal(t, "go test", failure.Command)
+	require.Equal(t, at, failure.StartedAt)
+	require.Equal(t, end, failure.FinishedAt)
+	require.Equal(t, 2, *failure.ExitCode)
+	require.True(t, p.Diagnostics.Failures[1].Truncated)
+	require.True(t, p.Diagnostics.Failures[1].StartedAt.IsZero())
+	require.Equal(t, "35.0%", p.Diagnostics.PeakOccupancy())
+	require.Equal(t, "350", p.Diagnostics.PeakFootprint())
+	require.EqualValues(t, 1, p.Diagnostics.TurnsFinished())
+	require.Equal(t, "unknown", (Diagnostics{}).PeakOccupancy())
+}
